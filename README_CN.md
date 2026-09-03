@@ -148,7 +148,7 @@ CLIProxyAPI 用户手册： [https://help.router-for.me/](https://help.router-fo
 ### 首次安装
 
 ```bash
-git clone --branch v7.2.148-cpa.2 --depth 1 \
+git clone --branch v7.2.148-cpa.3 --depth 1 \
   https://github.com/abc124774961/CLIProxyAPI-CPA-Releases.git
 cd CLIProxyAPI-CPA-Releases
 
@@ -276,10 +276,10 @@ scripts/check-license-runtime.sh \
 `latest` 镜像：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/abc124774961/CLIProxyAPI-CPA-Releases/v7.2.148-cpa.2/install-cpa-release.sh -o install-cpa-release.sh
+curl -fsSL https://raw.githubusercontent.com/abc124774961/CLIProxyAPI-CPA-Releases/v7.2.148-cpa.3/install-cpa-release.sh -o install-cpa-release.sh
 chmod 755 install-cpa-release.sh
 CPA_INSTALL_DIR=/opt/cpa-pro \
-CPA_RELEASE_VERSION=v7.2.148-cpa.2 \
+CPA_RELEASE_VERSION=v7.2.148-cpa.3 \
 ./install-cpa-release.sh
 ```
 
