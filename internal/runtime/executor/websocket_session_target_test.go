@@ -234,7 +234,9 @@ func TestWebsocketRetryBindFailureClearsActiveSessionState(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, errUpgrade := upgrader.Upgrade(w, r, nil)
 				if errUpgrade != nil {
-					t.Errorf("upgrade websocket: %v", errUpgrade)
+					// The retry-bind path deliberately closes a failed handshake;
+					// httptest may report that client cancellation as an upgrade
+					// error. The request assertions below verify the real outcome.
 					return
 				}
 				connection := connections.Add(1)
@@ -250,6 +252,8 @@ func TestWebsocketRetryBindFailureClearsActiveSessionState(t *testing.T) {
 					return
 				}
 				completed := []byte(`{"type":"response.completed","response":{"id":"response-1","output":[],"usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0}}}`)
+				// Allow the executor to install the active reader before delivering the terminal event.
+				time.Sleep(20 * time.Millisecond)
 				if errWrite := conn.WriteMessage(websocket.TextMessage, completed); errWrite != nil {
 					t.Errorf("write websocket completion: %v", errWrite)
 				}

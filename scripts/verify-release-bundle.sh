@@ -23,15 +23,24 @@ required_files=(
   README_CN.md
   RELEASE-CANDIDATE.md
   scripts/check-license-deployment.sh
+  scripts/check-license-deployment_test.sh
   scripts/check-license-runtime.sh
+  scripts/check-license-runtime_test.sh
 )
 for path in "${required_files[@]}"; do
   [[ -f "$path" ]] || { echo "FAIL: release file is missing: $path" >&2; exit 1; }
 done
-for path in install-cpa-release.sh scripts/check-license-deployment.sh scripts/check-license-runtime.sh scripts/verify-release-bundle.sh; do
+for path in install-cpa-release.sh scripts/check-license-deployment.sh scripts/check-license-runtime.sh scripts/check-license-runtime_test.sh scripts/verify-release-bundle.sh; do
   [[ -x "$path" ]] || { echo "FAIL: release script is not executable: $path" >&2; exit 1; }
 done
-bash -n install-cpa-release.sh scripts/check-license-deployment.sh scripts/check-license-runtime.sh scripts/verify-release-bundle.sh
+bash -n install-cpa-release.sh scripts/check-license-deployment.sh scripts/check-license-runtime.sh scripts/check-license-runtime_test.sh scripts/verify-release-bundle.sh
+
+for ignore_entry in '.env' 'data' 'secrets' 'plugins' '*.key'; do
+  grep -Fx -- "$ignore_entry" .dockerignore >/dev/null 2>&1 || {
+    echo "FAIL: .dockerignore must exclude deployment material: $ignore_entry" >&2
+    exit 1
+  }
+done
 
 # Google OAuth client secrets must be supplied by the deployment environment;
 # a public release must never carry a hard-coded GOCSPX credential.

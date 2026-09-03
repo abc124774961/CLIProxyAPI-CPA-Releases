@@ -7,10 +7,11 @@ English | [中文](README_CN.md) | [日本語](README_JA.md)
 Customer CPA deployments use the pinned release tags in
 [`abc124774961/CLIProxyAPI-CPA-Releases`](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases),
 not a mutable development branch or `latest` image. The release bundle pins the
-storefront and advanced-plugin public keys, persists license state, checks the
-storefront grace endpoint before startup, and keeps a previous image for upgrade
-rollback. See [`README_CN.md`](README_CN.md) for the customer installation flow
-and [`release-manifest.json`](release-manifest.json) for the release metadata.
+storefront and advanced-plugin public keys, persists license state, uses an
+explicit non-mutating storefront preflight when configured, and keeps a previous
+image for upgrade rollback. See [`README_CN.md`](README_CN.md) for the customer
+installation flow and [`release-manifest.json`](release-manifest.json) for the
+release metadata.
 
 If you want to use CLIProxyAPI on your desktop, we recommend our [EasyCLIProxyAPI](https://github.com/router-for-me/EasyCLIProxyAPI) desktop client. It provides a graphical configuration UI, automatic updates, system tray integration, and one-click start/stop for the CLIProxyAPI service.
 

@@ -13,9 +13,17 @@ Usage: scripts/check-license-deployment.sh [options]
 Options:
   --env-file PATH       Compose environment file (default: .env)
   --compose-file PATH   Compose file (default: docker-compose.yml)
-  --provider            POST an empty preflight body to the storefront grace
-                        endpoint and fail when it returns 404 or is unreachable
-                        (requires the host secret file to exist first)
+  --provider            Probe the storefront authorization endpoint. The probe
+                        accepts only an HTTP 2xx response; 3xx/4xx/5xx and
+                        network failures are deployment failures.
+  --provider-url URL    Override the probe URL (or set
+                        CPA_LICENSE_PREFLIGHT_URL). Use the storefront's
+                        non-mutating dry-run endpoint when available.
+  --provider-body JSON  Send a complete JSON request body (or set
+                        CPA_LICENSE_PREFLIGHT_BODY).
+  --provider-body-file PATH
+                        Read the JSON request body from a mode-restricted file
+                        (or set CPA_LICENSE_PREFLIGHT_BODY_FILE).
   -h, --help            Show this help
 USAGE
 }
@@ -23,6 +31,9 @@ USAGE
 env_file=".env"
 compose_file="docker-compose.yml"
 check_provider=0
+provider_url_override=""
+provider_body_override=""
+provider_body_file_override=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -39,6 +50,24 @@ while [[ $# -gt 0 ]]; do
     --provider)
       check_provider=1
       shift
+      ;;
+    --provider-url|--provider-dry-run-url)
+      [[ $# -ge 2 ]] || { echo "$1 requires a URL" >&2; exit 2; }
+      provider_url_override="$2"
+      check_provider=1
+      shift 2
+      ;;
+    --provider-body|--provider-request-body)
+      [[ $# -ge 2 ]] || { echo "$1 requires JSON" >&2; exit 2; }
+      provider_body_override="$2"
+      check_provider=1
+      shift 2
+      ;;
+    --provider-body-file|--provider-request-body-file)
+      [[ $# -ge 2 ]] || { echo "$1 requires a path" >&2; exit 2; }
+      provider_body_file_override="$2"
+      check_provider=1
+      shift 2
       ;;
     -h|--help)
       usage
@@ -118,9 +147,45 @@ dotenv_value() {
   printf '%s' "$(printf '%s' "$value" | sed 's/[[:space:]]*$//')"
 }
 
+# Read a simple scalar from the customer config without evaluating YAML or
+# executing any file content. Existing deployments may keep the public key in
+# config.yaml while their environment file contains only runtime overrides.
+yaml_license_value() {
+  local path="$1"
+  local key="$2"
+  [[ -f "$path" && -r "$path" ]] || return 0
+  awk -v wanted="$key" '
+    /^[[:space:]]*license:[[:space:]]*(#.*)?$/ { in_section=1; next }
+    in_section && /^[^[:space:]]/ { in_section=0 }
+    in_section && $0 ~ "^[[:space:]]+" wanted ":" {
+      value=$0
+      sub(/^[^:]*:[[:space:]]*/, "", value)
+      sub(/[[:space:]]+#.*$/, "", value)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+      if (value ~ /^\".*\"$/) value=substr(value, 2, length(value)-2)
+      else if (value ~ /^\047.*\047$/) value=substr(value, 2, length(value)-2)
+      print value
+      exit
+    }
+  ' "$path"
+}
+
+config_path="$(dotenv_value CLI_PROXY_CONFIG_PATH)"
+[[ -n "$config_path" ]] || config_path="config.yaml"
+case "$config_path" in
+  "~") config_path="${HOME:-}" ;;
+  "~/"*) [[ -n "${HOME:-}" ]] && config_path="$HOME/${config_path#~/}" ;;
+  /*) ;;
+  *) config_path="$compose_dir/$config_path" ;;
+esac
 public_key="$(dotenv_value CPA_LICENSE_PUBLIC_KEY)"
+public_key_source="environment"
 if [[ -z "$public_key" ]]; then
-  fail "CPA_LICENSE_PUBLIC_KEY is empty; provide the storefront Ed25519 public key"
+  public_key="$(yaml_license_value "$config_path" public-key)"
+  public_key_source="config.yaml"
+fi
+if [[ -z "$public_key" ]]; then
+  fail "CPA_LICENSE_PUBLIC_KEY is empty and license.public-key is missing from $config_path; provide the storefront Ed25519 public key"
 elif ! command -v python3 >/dev/null 2>&1; then
   fail "python3 is required to validate the Ed25519 public key"
 else
@@ -148,11 +213,59 @@ if decoded is None or len(decoded) != 32:
     sys.exit(1)
 PY
   then
-    pass "CPA_LICENSE_PUBLIC_KEY decodes to an Ed25519 public key"
+    pass "CPA_LICENSE_PUBLIC_KEY decodes to an Ed25519 public key (source: $public_key_source)"
   else
     fail "CPA_LICENSE_PUBLIC_KEY is not a 32-byte base64/base64url/hex Ed25519 key"
   fi
 fi
+
+host_port="$(dotenv_value CLI_PROXY_HOST_PORT)"
+[[ -n "$host_port" ]] || host_port="8317"
+if [[ ! "$host_port" =~ ^[0-9]+$ ]] || (( host_port < 1 || host_port > 65535 )); then
+  fail "CLI_PROXY_HOST_PORT must be an integer between 1 and 65535"
+else
+  pass "CPA host port is valid ($host_port -> container 8317)"
+fi
+
+container_name="$(dotenv_value CLI_PROXY_CONTAINER_NAME)"
+if [[ -z "$container_name" ]]; then
+  # The cluster Compose file intentionally uses a distinct default name so it
+  # can run beside the standalone service. Mirror that default when the
+  # customer leaves CLI_PROXY_CONTAINER_NAME unset.
+  case "$(basename "$compose_file")" in
+    docker-compose.cluster.yml) container_name="cli-proxy-api-cluster" ;;
+    *) container_name="cli-proxy-api" ;;
+  esac
+fi
+if [[ ! "$container_name" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+  fail "CLI_PROXY_CONTAINER_NAME contains invalid Docker name characters"
+else
+  pass "CPA container name is valid ($container_name)"
+fi
+
+declare -a mapped_host_ports=()
+mapped_host_ports+=("$host_port")
+for callback_spec in \
+  "CLI_PROXY_HOST_PORT_8085:8085" \
+  "CLI_PROXY_HOST_PORT_1455:1455" \
+  "CLI_PROXY_HOST_PORT_54545:54545" \
+  "CLI_PROXY_HOST_PORT_51121:51121" \
+  "CLI_PROXY_HOST_PORT_11451:11451"; do
+  callback_var="${callback_spec%%:*}"
+  callback_container_port="${callback_spec##*:}"
+  callback_host_port="$(dotenv_value "$callback_var")"
+  [[ -n "$callback_host_port" ]] || callback_host_port="$callback_container_port"
+  if [[ ! "$callback_host_port" =~ ^[0-9]+$ ]] || (( callback_host_port < 1 || callback_host_port > 65535 )); then
+    fail "$callback_var must be an integer between 1 and 65535"
+    continue
+  fi
+  for existing_port in "${mapped_host_ports[@]}"; do
+    if [[ "$existing_port" == "$callback_host_port" ]]; then
+      fail "host port $callback_host_port is mapped more than once; adjust CLI_PROXY_HOST_PORT_* values"
+    fi
+  done
+  mapped_host_ports+=("$callback_host_port")
+done
 
 management_password="$(dotenv_value MANAGEMENT_PASSWORD)"
 config_path="$(dotenv_value CLI_PROXY_CONFIG_PATH)"
@@ -279,6 +392,32 @@ if [[ -f "$env_file" && -f "$compose_file" ]]; then
     else
       fail "client-secret Docker secret target is missing or mismatched"
     fi
+    if grep -Eq "container_name:[[:space:]]+$container_name$" "$rendered_config"; then
+      pass "Compose uses container name $container_name"
+    else
+      fail "Compose container name does not match CLI_PROXY_CONTAINER_NAME ($container_name)"
+    fi
+    if awk -v port="$host_port" '
+      /^[[:space:]]+target:[[:space:]]*8317[[:space:]]*$/ {
+        target=1
+        next
+      }
+      target && /^[[:space:]]+published:/ {
+        value=$0
+        sub(/^[^:]*:[[:space:]]*/, "", value)
+        gsub(/[[:space:]]/, "", value)
+        gsub(/\"/, "", value)
+        if (value == port) found=1
+        target=0
+        next
+      }
+      target && $0 !~ /^[[:space:]]+/ { target=0 }
+      END { exit(found ? 0 : 1) }
+    ' "$rendered_config"; then
+      pass "Compose maps host port $host_port to container port 8317"
+    else
+      fail "Compose does not map CLI_PROXY_HOST_PORT $host_port to container port 8317"
+    fi
     if grep -Eq "pull_policy: (build|always|missing|never|daily|every_[0-9]+[smhd])" "$rendered_config"; then
       pass "image pull policy is explicit"
     else
@@ -290,35 +429,132 @@ if [[ -f "$env_file" && -f "$compose_file" ]]; then
 fi
 
 if [[ "$check_provider" -eq 1 ]]; then
-  base_url="$(dotenv_value CPA_LICENSE_API_BASE_URL)"
-  [[ -n "$base_url" ]] || base_url="https://p.666ttt.net/api/storefront"
-  grace_path="$(dotenv_value CPA_LICENSE_GRACE_PATH)"
-  [[ -n "$grace_path" ]] || grace_path="/licenses/grace"
-  [[ "$grace_path" == /* ]] || grace_path="/$grace_path"
-  grace_url="${base_url%/}${grace_path}"
-  display_url="${grace_url%%\?*}"
-  if ! command -v curl >/dev/null 2>&1; then
-    fail "curl is required for --provider"
+  provider_url="${provider_url_override:-$(dotenv_value CPA_LICENSE_PREFLIGHT_URL)}"
+  provider_body="${provider_body_override:-$(dotenv_value CPA_LICENSE_PREFLIGHT_BODY)}"
+  provider_body_file="${provider_body_file_override:-$(dotenv_value CPA_LICENSE_PREFLIGHT_BODY_FILE)}"
+  provider_input_valid=1
+  if [[ -n "$provider_body_override" && -n "$provider_body_file" ]]; then
+    fail "set only one of --provider-body and --provider-body-file"
+    provider_input_valid=0
+  elif [[ -n "$provider_body_file" ]]; then
+    if [[ "$provider_body_file" != /* ]]; then
+      provider_body_file="$compose_dir/$provider_body_file"
+    fi
+    if [[ ! -f "$provider_body_file" ]]; then
+      fail "CPA_LICENSE_PREFLIGHT_BODY_FILE does not point to a file: $provider_body_file"
+      provider_input_valid=0
+    else
+      provider_body="$(cat "$provider_body_file")"
+    fi
+  fi
+
+  # An empty POST to /licenses/grace is not a harmless health check: a valid
+  # request can create a one-time grace window. Require an explicit provider
+  # dry-run URL instead of silently probing a mutating endpoint.
+  if [[ -z "$provider_url" ]]; then
+    fail "--provider requires --provider-url or CPA_LICENSE_PREFLIGHT_URL; configure the storefront's non-mutating dry-run endpoint (empty grace probes are disabled)"
+    provider_input_valid=0
   else
-    provider_code="$(curl -sS -o /dev/null -w '%{http_code}' \
-      --connect-timeout 5 --max-time 10 \
-      -X POST "$grace_url" \
-      -H 'Content-Type: application/json' \
-      -d '{}' || printf '000')"
-    case "$provider_code" in
-      404|405|000)
-        fail "storefront grace endpoint returned HTTP $provider_code: $display_url"
-        ;;
-      3??)
-        fail "storefront grace endpoint redirected with HTTP $provider_code: $display_url"
-        ;;
-      5??)
-        fail "storefront grace endpoint returned HTTP $provider_code: $display_url"
-        ;;
+    case "$provider_url" in
+      http://*|https://*) ;;
       *)
-        pass "storefront grace endpoint is present (HTTP $provider_code): $display_url"
+        fail "provider preflight URL must use http:// or https://"
+        provider_input_valid=0
         ;;
     esac
+    if [[ "$provider_url" == *"/licenses/grace"* && "$provider_url" != *"dry_run"* && "$provider_url" != *"dry-run"* && "$provider_url" != *"preflight"* && "$(dotenv_value CPA_LICENSE_PREFLIGHT_ALLOW_MUTATING)" != "1" ]]; then
+      fail "provider preflight URL points to the mutating grace endpoint; use a dedicated dry-run/preflight URL"
+      provider_input_valid=0
+    fi
+  fi
+
+  if [[ -z "$provider_body" ]]; then
+    fail "--provider requires a complete JSON body via --provider-body or CPA_LICENSE_PREFLIGHT_BODY(_FILE)"
+    provider_input_valid=0
+  elif ! command -v python3 >/dev/null 2>&1; then
+    fail "python3 is required to validate the provider preflight JSON body"
+    provider_input_valid=0
+  elif ! python3 - "$provider_body" <<'PY'
+import json
+import sys
+
+try:
+    value = json.loads(sys.argv[1])
+except Exception as exc:
+    raise SystemExit(f"invalid JSON: {exc}")
+if not isinstance(value, dict):
+    raise SystemExit("request body must be a JSON object")
+PY
+  then
+    fail "provider preflight body is not a valid JSON object"
+    provider_input_valid=0
+  fi
+
+  # Prefer the file-backed secret when it is non-empty. This mirrors the
+  # Compose behavior while keeping the secret out of the checker's output.
+  provider_secret="$direct_client_secret"
+  if [[ -f "$secret_host_path" && -s "$secret_host_path" ]]; then
+    provider_secret="$(cat "$secret_host_path")"
+  fi
+  provider_secret="$(printf '%s' "$provider_secret" | sed 's/[[:space:]]*$//')"
+
+  if ! command -v curl >/dev/null 2>&1; then
+    fail "curl is required for --provider"
+  elif [[ "$provider_input_valid" == "1" && -n "$provider_url" && -n "$provider_body" ]]; then
+    provider_response="$(mktemp "${TMPDIR:-/tmp}/cpa-provider-preflight.XXXXXX")"
+    provider_args=(
+      -sS -o "$provider_response" -w '%{http_code}'
+      --connect-timeout 5 --max-time 10
+      -X POST "$provider_url"
+      -H 'Accept: application/json'
+      -H 'Content-Type: application/json'
+      -H 'X-CPA-License-Preflight: 1'
+      --data-binary "$provider_body"
+    )
+    if [[ -n "$client_id" ]]; then
+      # Match the runtime licensing client and storefront guard contract.
+      provider_args+=( -H "X-License-Client-ID: $client_id" )
+    fi
+    if [[ -n "$provider_secret" ]]; then
+      provider_args+=( -H "Authorization: Bearer $provider_secret" )
+    fi
+    if provider_code="$(curl "${provider_args[@]}")"; then
+      :
+    else
+      provider_code="000"
+    fi
+    rm -f "$provider_response"
+    display_url="${provider_url%%\?*}"
+    if [[ "$provider_code" =~ ^2[0-9][0-9]$ ]]; then
+      pass "storefront authorization preflight succeeded (HTTP $provider_code): $display_url"
+    else
+      case "$provider_code" in
+        400)
+          fail "storefront authorization preflight returned HTTP 400 (request body rejected; verify the provider dry-run contract): $display_url"
+          ;;
+        401|403)
+          fail "storefront authorization preflight returned HTTP $provider_code (client credentials rejected or missing): $display_url"
+          ;;
+        404)
+          fail "storefront authorization preflight returned HTTP 404 (dry-run endpoint is missing): $display_url"
+          ;;
+        405)
+          fail "storefront authorization preflight returned HTTP 405 (URL does not accept POST): $display_url"
+          ;;
+        3??)
+          fail "storefront authorization preflight redirected with HTTP $provider_code; redirects are not accepted: $display_url"
+          ;;
+        5??)
+          fail "storefront authorization preflight returned HTTP $provider_code (provider unavailable): $display_url"
+          ;;
+        000)
+          fail "storefront authorization preflight could not reach the provider: $display_url"
+          ;;
+        *)
+          fail "storefront authorization preflight returned unexpected HTTP $provider_code: $display_url"
+          ;;
+      esac
+    fi
   fi
 fi
 

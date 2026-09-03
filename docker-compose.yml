@@ -12,7 +12,7 @@ services:
         VERSION: ${VERSION:-dev}
         COMMIT: ${COMMIT:-none}
         BUILD_DATE: ${BUILD_DATE:-unknown}
-    container_name: cli-proxy-api
+    container_name: ${CLI_PROXY_CONTAINER_NAME:-cli-proxy-api}
     environment:
       DEPLOY: ${DEPLOY:-}
       # Management and storefront license settings are passed explicitly so a
@@ -46,12 +46,16 @@ services:
       CPA_LICENSE_EXECUTABLE_SHA256: ${CPA_LICENSE_EXECUTABLE_SHA256:-}
       CPA_LICENSE_CLAIM_PATH: ${CPA_LICENSE_CLAIM_PATH:-}
     ports:
-      - "8317:8317"
-      - "8085:8085"
-      - "1455:1455"
-      - "54545:54545"
-      - "51121:51121"
-      - "11451:11451"
+      # The CPA process listens on 8317 inside the container. Customers can
+      # choose another host port (for example 18320) for parallel validation.
+      - "${CLI_PROXY_HOST_PORT:-8317}:8317"
+      # OAuth/legacy callback listeners keep their container ports; each host
+      # side can be changed when another CPA instance already owns the default.
+      - "${CLI_PROXY_HOST_PORT_8085:-8085}:8085"
+      - "${CLI_PROXY_HOST_PORT_1455:-1455}:1455"
+      - "${CLI_PROXY_HOST_PORT_54545:-54545}:54545"
+      - "${CLI_PROXY_HOST_PORT_51121:-51121}:51121"
+      - "${CLI_PROXY_HOST_PORT_11451:-11451}:11451"
     volumes:
       - ${CLI_PROXY_CONFIG_PATH:-./config.yaml}:/CLIProxyAPI/config.yaml
       - ${CLI_PROXY_AUTH_PATH:-./auths}:/root/.cli-proxy-api
@@ -59,7 +63,12 @@ services:
       - ${CLI_PROXY_PLUGIN_PATH:-./plugins}:/CLIProxyAPI/plugins
       # Keep installation identity, signed leases and encrypted plugin packages
       # across container recreation or image upgrades.
-      - ${CLI_PROXY_LICENSE_PATH:-./data/license}:/CLIProxyAPI/data/license
+      # Long syntax forces every relative value to be a host bind path rooted
+      # at this Compose file, including values such as `data/license` that
+      # Docker Compose short syntax would otherwise treat as named volumes.
+      - type: bind
+        source: ${CLI_PROXY_LICENSE_PATH:-./data/license}
+        target: /CLIProxyAPI/data/license
     secrets:
       - source: cpa_license_client_secret
         target: cpa-license-client-secret

@@ -141,14 +141,14 @@ CLIProxyAPI 用户手册： [https://help.router-for.me/](https://help.router-fo
 ### 部署前检查
 
 - Docker Engine 与 Docker Compose v2 可用；主机时间、DNS 和 CA 证书正常。
-- 主机可以通过 HTTPS 访问 `https://p.666ttt.net`。商城服务端需要同时提供授权交换、激活、刷新、校验、宽限和高级插件下载接口；其中 `/api/storefront/licenses/grace` 是首次安装宽限期的入口。
-- 客户为配置、账号、日志、插件和授权状态准备持久化目录。不要在升级时删除 `data/license`，其中保存实例身份、签名租约和已校验的加密插件包。
+- 主机可以通过 HTTPS 访问 `https://p.666ttt.net`。商城服务端需要同时提供授权交换、激活、刷新、校验、宽限和高级插件下载接口；其中 `/api/storefront/licenses/grace` 只在首次真实激活时使用，安装器默认不会探测这个会写入租约的 live 路由。
+- 客户为配置、账号、日志、插件和授权状态准备持久化目录。不要在升级时删除 `data/license`（或 `CLI_PROXY_LICENSE_PATH` 指定的目录），其中保存实例身份、签名租约和已校验的加密插件包。
 - 8317 端口只暴露给需要访问 API 的网络。管理接口默认只接受本机访问；确需远程管理时，使用 HTTPS 反向代理、强管理密码，并在配置中明确打开 `remote-management.allow-remote`。
 
 ### 首次安装
 
 ```bash
-git clone --branch v7.2.148-cpa.1 --depth 1 \
+git clone --branch v7.2.148-cpa.2 --depth 1 \
   https://github.com/abc124774961/CLIProxyAPI-CPA-Releases.git
 cd CLIProxyAPI-CPA-Releases
 
@@ -166,12 +166,19 @@ chmod 600 secrets/cpa-license-client-secret
 
 ```dotenv
 MANAGEMENT_PASSWORD=生成一个强管理密码
+# 容器内固定监听 8317；宿主机可改成 18320 以便并行验证
+CLI_PROXY_HOST_PORT=18320
 # 两个发布者公钥已经固化在 .env.example 与 release-manifest.json 中。
 CPA_LICENSE_CLIENT_ID=商城提供的客户端ID
 CPA_LICENSE_CLIENT_SECRET=商城提供的客户端Secret
 CPA_LICENSE_API_BASE_URL=https://p.666ttt.net/api/storefront
 CLI_PROXY_LICENSE_PATH=./data/license
 ```
+
+`CLI_PROXY_LICENSE_PATH` 是宿主机上的授权状态目录，支持三种写法：相对路径（相对当前
+checkout/安装目录，例如 `data/license`）、`~/...`（相对当前用户的 HOME）和绝对路径。
+安装器会先按这套规则创建目录，并在启动后从同一目录检查 `installation.id`；Compose 使用
+bind mount 将它映射到容器内的 `/CLIProxyAPI/data/license`。升级时必须保持该值不变并保留目录内容。
 
 `CPA_LICENSE_PLUGIN_PUBLIC_KEY` 用于高级插件的专用签名公钥；留空时会沿用主授权公钥。Compose 始终把 `./secrets/cpa-license-client-secret` 挂载到容器内的 `/run/secrets/cpa-license-client-secret`。简单部署可只填写 `CPA_LICENSE_CLIENT_SECRET`，安装器创建的空文件不会覆盖它；若采用文件模式，设置 `CPA_LICENSE_CLIENT_SECRET_HOST_PATH` 并把 Secret 写入该文件，非空文件会优先使用。不要把 Secret 提交到 Git。
 
@@ -182,15 +189,34 @@ CLI_PROXY_LICENSE_PATH=./data/license
 
 如果通过 `MANAGEMENT_PASSWORD` 注入管理密码，程序会启用管理接口并允许远程管理覆盖项；仅限本机管理时可不设置该变量，改在 `config.yaml` 设置 `remote-management.secret-key`，并保持 `allow-remote: false`。`CPA_LICENSE_CLIENT_SECRET` 或 `CPA_LICENSE_STORAGE_KEY` 发生变更时，原有授权状态可能因密钥派生变化而需要重新激活；升级时应保持它们稳定。
 
+安装器和运行时检查会读取 `CLI_PROXY_HOST_PORT`，因此健康检查地址会随宿主机端口变化；容器内部端口始终是 8317。若只在本机验证，可使用 `CLI_PROXY_HOST_PORT=18320`，再访问 `http://127.0.0.1:18320`。
+
 `config.yaml` 中的 `license.grace-period: 6h` 只是旧格式租约或网络故障时的本地兜底值。首次安装的宽限租约由商城签名并返回，实际时长、开始时间和结束时间以 `grace_until` 为准；修改客户机上的 YAML 或环境变量不会延长商城签发的租约。
 
 提交启动前可运行仓库自带的无密钥输出自检脚本。它会校验公钥长度、Compose 授权变量注入、授权状态卷和镜像拉取策略，不会打印 Secret：
 
 ```bash
 scripts/check-license-deployment.sh --env-file .env --compose-file docker-compose.yml
-# 可选：向宽限接口发送空请求，确认接口存在且不是 404/不可达（不会提交真实授权码）。
+# 可选：使用商城提供的非写入 dry-run/preflight 路由，发送完整 JSON 请求。
+# 先在 .env 设置 CPA_LICENSE_PREFLIGHT_URL 与
+# CPA_LICENSE_PREFLIGHT_BODY（或 CPA_LICENSE_PREFLIGHT_BODY_FILE）。
 scripts/check-license-deployment.sh --env-file .env --compose-file docker-compose.yml --provider
 ```
+
+`--provider` 现在只接受 HTTP 2xx。它会携带已配置的商城客户端凭据，并把
+400、401、403、404、405、重定向、5xx 和网络错误都视为失败；不会再向真实
+`/licenses/grace` 路由发送空请求，因为完整请求可能创建一次性宽限租约。
+`CPA_PROVIDER_PREFLIGHT` 默认是 `0`，因此默认安装流程不会探测商城 live Grace；只有在商城
+明确提供非写入 dry-run/preflight 路由、并且配置完整请求体时，才设置为 `1` 执行可选预检。
+`CPA_LICENSE_PREFLIGHT_URL` 必须指向该非写入路由，`CPA_LICENSE_PREFLIGHT_BODY` 应是该路由要求的完整 JSON 对象，例如：
+
+```dotenv
+CPA_LICENSE_PREFLIGHT_URL=https://STORE_HOST/api/storefront/licenses/preflight
+CPA_LICENSE_PREFLIGHT_BODY={"product":"CPA","instance_id":"preflight-TARGET","dry_run":true}
+```
+
+如果商城尚未提供该路由，跳过 `--provider` 只代表未完成可选的预检，不能
+当作授权成功；首次真实激活和宽限租约仍须在启动后用运行时检查脚本验证。
 
 ### 构建与启动
 
@@ -209,23 +235,27 @@ docker compose --env-file .env up -d
 ```bash
 docker compose --env-file .env ps
 docker compose --env-file .env logs --tail=100 cli-proxy-api
-curl -fsS http://127.0.0.1:8317/healthz
+curl -fsS http://127.0.0.1:${CLI_PROXY_HOST_PORT:-8317}/healthz
 
-# MANAGEMENT_PASSWORD 为空时，改用 config.yaml 中 remote-management.secret-key 的明文值。
+# MANAGEMENT_PASSWORD 为空时，脚本会从 CLI_PROXY_CONFIG_PATH（默认 config.yaml）
+# 读取 remote-management.secret-key 的明文值；CPA 启动后会把该值持久化为 bcrypt，
+# 因此升级前请保留 MANAGEMENT_PASSWORD 或使用 --management-key-file 提供原始密钥。
 curl -fsS \
   -H "Authorization: Bearer ${MANAGEMENT_PASSWORD}" \
-  http://127.0.0.1:8317/v0/management/license/status
+  http://127.0.0.1:${CLI_PROXY_HOST_PORT:-8317}/v0/management/license/status
 
 # 使用客户自己的下游 API key 做一次真实 canary。
 curl -fsS \
   -H "Authorization: Bearer TARGET_API_KEY" \
-  http://127.0.0.1:8317/v1/models
+  http://127.0.0.1:${CLI_PROXY_HOST_PORT:-8317}/v1/models
 ```
 
 也可以用运行时自检脚本完成同样的授权门检查。它会等待首次宽限租约异步签发（默认 30 秒），接受 `active`、`grace` 或 `expiry_grace`，并可选执行 `/v1/models` canary：
 
 ```bash
 scripts/check-license-runtime.sh \
+  --base-url http://127.0.0.1:${CLI_PROXY_HOST_PORT:-8317} \
+  --config-file ./config.yaml \
   --management-key-file /secure/path/management-key \
   --api-key-file /secure/path/downstream-api-key
 ```
@@ -246,17 +276,17 @@ scripts/check-license-runtime.sh \
 `latest` 镜像：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/abc124774961/CLIProxyAPI-CPA-Releases/v7.2.148-cpa.1/install-cpa-release.sh -o install-cpa-release.sh
+curl -fsSL https://raw.githubusercontent.com/abc124774961/CLIProxyAPI-CPA-Releases/v7.2.148-cpa.2/install-cpa-release.sh -o install-cpa-release.sh
 chmod 755 install-cpa-release.sh
 CPA_INSTALL_DIR=/opt/cpa-pro \
-CPA_RELEASE_VERSION=v7.2.148-cpa.1 \
+CPA_RELEASE_VERSION=v7.2.148-cpa.2 \
 ./install-cpa-release.sh
 ```
 
 首次运行只会创建 `.env` 和目录，不会启动服务。授权公钥与插件公钥已经随
 固定版本发布；填写管理密码、客户端 ID/Secret（商城启用客户端校验时）后，
 再次运行并设置 `CPA_ALLOW_EXISTING=1`。安装器会核对 tag、构建当前 checkout、
-校验发行清单、检查磁盘与并发安装锁、探测商城 Grace 路由、渲染 Compose，
+校验发行清单、检查磁盘与并发安装锁、渲染 Compose，
 并只启动 `cli-proxy-api` 服务。启动后还会验证真实授权状态；升级失败时会使用
 保留的旧镜像恢复。升级前仍应备份 `data/license` 与 `auths`，并避免执行
 `down -v`。

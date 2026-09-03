@@ -11,7 +11,7 @@ services:
         VERSION: ${VERSION:-dev}
         COMMIT: ${COMMIT:-none}
         BUILD_DATE: ${BUILD_DATE:-unknown}
-    container_name: cli-proxy-api-cluster
+    container_name: ${CLI_PROXY_CONTAINER_NAME:-cli-proxy-api-cluster}
     environment:
       HOME_JWT: ${HOME_JWT:-}
       MANAGEMENT_PASSWORD: ${MANAGEMENT_PASSWORD:-}
@@ -38,12 +38,18 @@ services:
       CPA_LICENSE_EXECUTABLE_SHA256: ${CPA_LICENSE_EXECUTABLE_SHA256:-}
       CPA_LICENSE_CLAIM_PATH: ${CPA_LICENSE_CLAIM_PATH:-}
     ports:
-      - "8317:8317"
+      # The cluster node still listens on 8317 in the container; use a
+      # customer-selected host port when running beside another node.
+      - "${CLI_PROXY_HOST_PORT:-8317}:8317"
     volumes:
       - ${CLI_PROXY_HOME_PATH:-./home}:/root/.cli-proxy-api
       - ${CLI_PROXY_LOG_PATH:-./logs}:/CLIProxyAPI/logs
       - ${CLI_PROXY_PLUGIN_PATH:-./plugins}:/CLIProxyAPI/plugins
-      - ${CLI_PROXY_LICENSE_PATH:-./data/license}:/CLIProxyAPI/data/license
+      # Keep relative license paths as host bind mounts rather than named
+      # volumes so the installer and checker share one persistent state path.
+      - type: bind
+        source: ${CLI_PROXY_LICENSE_PATH:-./data/license}
+        target: /CLIProxyAPI/data/license
     secrets:
       - source: cpa_license_client_secret
         target: cpa-license-client-secret

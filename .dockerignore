@@ -20,6 +20,18 @@ auths
 logs
 conv
 config.yaml
+data
+secrets
+plugins
+
+# Deployment secrets and local environment files must never enter a Docker
+# build context. The release examples remain available in the checkout for
+# customers, but are not needed by the image build.
+.env
+.env.*
+!.env.example
+!.env.cluster.example
+*.key
 
 # Development/editor
 bin

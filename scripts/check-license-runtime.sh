@@ -14,6 +14,8 @@ Options:
   --base-url URL          CPA base URL (default: http://127.0.0.1:8317)
   --env-file PATH         Read MANAGEMENT_PASSWORD from a dotenv file when the
                           process environment does not provide it
+  --config-file PATH      Read remote-management.secret-key from this YAML file
+                          when no environment or key-file secret is provided
   --management-key-file PATH
                           Read the management key from a mode-restricted file
   --api-key-file PATH     Read a downstream API key for /v1/models canary
@@ -21,13 +23,18 @@ Options:
   -h, --help              Show this help
 
 The MANAGEMENT_PASSWORD environment variable supplies the management key when
---management-key-file is omitted. The API canary is skipped when --api-key-file
-is omitted.
+--management-key-file is omitted. If neither is present, the script reads the
+plaintext `remote-management.secret-key` from the YAML file selected by
+--config-file, CLI_PROXY_CONFIG_PATH in --env-file, or config.yaml. A bcrypt
+hash persisted by CPA cannot be used as a bearer key; provide the original key
+through MANAGEMENT_PASSWORD or --management-key-file in that case. The API
+canary is skipped when --api-key-file is omitted.
 USAGE
 }
 
 base_url="http://127.0.0.1:8317"
 env_file=""
+config_file=""
 management_key_file=""
 api_key_file=""
 wait_seconds=30
@@ -42,6 +49,11 @@ while [[ $# -gt 0 ]]; do
     --env-file)
       [[ $# -ge 2 ]] || { echo "--env-file requires a path" >&2; exit 2; }
       env_file="$2"
+      shift 2
+      ;;
+    --config-file)
+      [[ $# -ge 2 ]] || { echo "--config-file requires a path" >&2; exit 2; }
+      config_file="$2"
       shift 2
       ;;
     --management-key-file)
@@ -79,32 +91,140 @@ command -v curl >/dev/null 2>&1 || { echo "FAIL: curl is required" >&2; exit 1; 
 command -v python3 >/dev/null 2>&1 || { echo "FAIL: python3 is required" >&2; exit 1; }
 
 base_url="${base_url%/}"
+
+caller_dir="$PWD"
+if [[ -n "$env_file" && "$env_file" != /* ]]; then
+  env_file="$caller_dir/$env_file"
+fi
+env_dir="$caller_dir"
+if [[ -f "$env_file" ]]; then
+  env_dir="$(cd "$(dirname "$env_file")" && pwd)"
+fi
+
+# Read one dotenv value without sourcing customer-controlled shell code. This
+# mirrors Compose's precedence: an exported process value wins over --env-file.
+dotenv_value() {
+  local key="$1"
+  local value=""
+  if [[ -f "$env_file" ]]; then
+    value="$(awk -v key="$key" '
+      /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+      {
+        line = $0
+        sub(/^[[:space:]]*export[[:space:]]+/, "", line)
+        if (line ~ ("^" key "=")) {
+          sub(/^[^=]*=/, "", line)
+          print line
+          exit
+        }
+      }
+    ' "$env_file")"
+  fi
+  if [[ -n "${!key+x}" ]]; then
+    value="${!key}"
+  fi
+  value="${value#\"}"
+  value="${value%\"}"
+  value="${value#\'}"
+  value="${value%\'}"
+  printf '%s' "$(printf '%s' "$value" | sed 's/[[:space:]]*$//')"
+}
+
+resolve_path() {
+  local path="$1"
+  case "$path" in
+    "~")
+      path="$HOME"
+      ;;
+    "~/"*)
+      path="$HOME/${path#\~/}"
+      ;;
+    /*)
+      ;;
+    *)
+      path="$env_dir/$path"
+      ;;
+  esac
+  printf '%s' "$path"
+}
+
+# Extract the simple scalar used by the CPA config. The release config keeps
+# this key on one indented line; comments and matching quotes are handled so a
+# normal generated key is read without requiring PyYAML or yq on the host.
+yaml_management_key() {
+  local path="$1"
+  [[ -f "$path" && -r "$path" ]] || return 0
+  awk '
+    function trim(s) {
+      sub(/^[[:space:]]+/, "", s)
+      sub(/[[:space:]]+$/, "", s)
+      return s
+    }
+    /^[[:space:]]*remote-management:[[:space:]]*(#.*)?$/ {
+      in_section = 1
+      next
+    }
+    in_section && /^[^[:space:]]/ {
+      in_section = 0
+    }
+    in_section && /^[[:space:]]+secret-key:[[:space:]]*/ {
+      value = $0
+      sub(/^[^:]*:[[:space:]]*/, "", value)
+      value = trim(value)
+      if (value ~ /^"[^"]*"[[:space:]]*(#.*)?$/) {
+        sub(/[[:space:]]+#.*$/, "", value)
+        value = substr(value, 2, length(value) - 2)
+      } else if (value ~ /^\047[^\047]*\047[[:space:]]*(#.*)?$/) {
+        sub(/[[:space:]]+#.*$/, "", value)
+        value = substr(value, 2, length(value) - 2)
+      } else {
+        sub(/[[:space:]]+#.*$/, "", value)
+        value = trim(value)
+      }
+      print value
+      exit
+    }
+  ' "$path"
+}
+
 management_key="${MANAGEMENT_PASSWORD:-}"
 if [[ -z "$management_key" && -n "$env_file" ]]; then
   [[ -r "$env_file" ]] || { echo "FAIL: environment file is not readable" >&2; exit 1; }
-  management_key="$(awk '
-    /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
-    {
-      line = $0
-      sub(/^[[:space:]]*export[[:space:]]+/, "", line)
-      if (line ~ /^MANAGEMENT_PASSWORD=/) {
-        sub(/^[^=]*=/, "", line)
-        print line
-        exit
-      }
-    }
-  ' "$env_file")"
-  management_key="${management_key#\"}"
-  management_key="${management_key%\"}"
-  management_key="${management_key#\'}"
-  management_key="${management_key%\'}"
+  management_key="$(dotenv_value MANAGEMENT_PASSWORD)"
 fi
 if [[ -n "$management_key_file" ]]; then
-  [[ -r "$management_key_file" ]] || { echo "FAIL: management key file is not readable" >&2; exit 1; }
+  management_key_file="$(resolve_path "$management_key_file")"
+  [[ -r "$management_key_file" && -f "$management_key_file" ]] || { echo "FAIL: management key file is not readable" >&2; exit 1; }
   management_key="$(cat "$management_key_file")"
 fi
 management_key="$(printf '%s' "$management_key" | sed 's/[[:space:]]*$//')"
-[[ -n "$management_key" ]] || { echo "FAIL: MANAGEMENT_PASSWORD or --management-key-file is required" >&2; exit 1; }
+
+if [[ -z "$config_file" ]]; then
+  config_file="$(dotenv_value CLI_PROXY_CONFIG_PATH)"
+  [[ -n "$config_file" ]] || config_file="config.yaml"
+fi
+config_file="$(resolve_path "$config_file")"
+config_key_was_hashed=0
+if [[ -z "$management_key" ]]; then
+  config_management_key="$(yaml_management_key "$config_file")"
+  if [[ -n "$config_management_key" ]]; then
+    # CPA hashes a plaintext YAML key in place during startup. A persisted
+    # bcrypt value is intentionally not treated as the original secret.
+    if [[ "$config_management_key" =~ ^\$2[aby]\$[0-9]{2}\$ ]]; then
+      config_key_was_hashed=1
+    else
+      management_key="$config_management_key"
+    fi
+  fi
+fi
+if [[ -z "$management_key" ]]; then
+  if [[ "$config_key_was_hashed" == "1" ]]; then
+    echo "FAIL: config file already contains a bcrypt-hashed remote-management.secret-key; provide MANAGEMENT_PASSWORD or --management-key-file with the original key" >&2
+  else
+    echo "FAIL: MANAGEMENT_PASSWORD, --management-key-file, or plaintext remote-management.secret-key in $config_file is required" >&2
+  fi
+  exit 1
+fi
 
 api_key=""
 if [[ -n "$api_key_file" ]]; then
@@ -158,9 +278,9 @@ except Exception:
     raise SystemExit(0)
 print(
     "{}\t{}\t{}\t{}\t{}".format(
-        str(bool(payload.get("allowed"))).lower(),
-        str(bool(payload.get("configured"))).lower(),
-        str(bool(payload.get("integrity_valid"))).lower(),
+        str(payload.get("allowed") is True).lower(),
+        str(payload.get("configured") is True).lower(),
+        str(payload.get("integrity_valid") is True).lower(),
         str(payload.get("reason", "")),
         str(payload.get("last_refresh_error", "")),
     )

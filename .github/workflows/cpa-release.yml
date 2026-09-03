@@ -37,6 +37,10 @@ jobs:
           test -x scripts/check-license-deployment.sh
           test -x scripts/check-license-runtime.sh
           test -x scripts/verify-release-bundle.sh
+          test -x scripts/check-license-deployment_test.sh
+          bash scripts/check-license-deployment_test.sh
+          test -x scripts/check-license-runtime_test.sh
+          bash scripts/check-license-runtime_test.sh
       - name: Validate release tag format
         run: |
           [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+$ ]]
