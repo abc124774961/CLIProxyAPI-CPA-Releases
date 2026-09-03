@@ -2,6 +2,25 @@
 
 [English](README.md) | 中文 | [日本語](README_JA.md)
 
+## CPA-Pro 发布仓库
+
+本仓库是 CPA CLI 和配套 CPAMP（Manager + Agent）池镜像的公开发布入口，主要保留固定版本 tag、镜像
+manifest digest、校验文件和简洁部署说明。功能源码分别维护在
+[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 与
+[CPA-Manager-Pro](https://github.com/abc124774961/CPA-Manager-Pro)，不在这里重复维护开发流程。
+
+常用入口：
+
+- [版本目录](RELEASES_CN.md) / [English release index](RELEASES.md)
+- [CPA CLI + CPAMP 统一部署](docs/deployment-cpa-cpamp.zh-CN.md)
+- [CPAMP 发布模板](deploy/cpamp-pool-server/README.md)
+- [机器可读版本清单](release-catalog.json)
+- [授权与运行时 manifest](release-manifest.json)
+
+客户部署请固定版本 tag 或 catalog 中的 `sha256` digest，不使用 `latest`。CPAMP 可直接使用本仓库的
+[发布模板](deploy/cpamp-pool-server/README.md)；源码仓库仅作为完整参数和变更参考：
+[CPA-Manager-Pro/deploy/pool-server](https://github.com/abc124774961/CPA-Manager-Pro/blob/main/deploy/pool-server/README.md)。
+
 如果您想在您的桌面使用 CLIProxyAPI，我们推荐您使用我们的 [EasyCLIProxyAPI](https://github.com/router-for-me/EasyCLIProxyAPI) 桌面客户端，该客户端提供了图形化的配置界面、自动更新、系统托盘集成、一键启动/关闭 CLIProxyAPI 服务等功能。
 
 CLIProxyAPI 是一个为 CLI 提供 OpenAI/Gemini/Claude/Codex/Grok 兼容 API 接口的代理服务器。
@@ -312,9 +331,10 @@ scripts/check-license-deployment.sh \
 
 独立的 CLIProxyAPI 使用量持久化与可视化服务，定期同步 CLIProxyAPI 数据，存储到 SQLite，提供聚合 API，并内置使用量分析与统计仪表盘。
 
-### [CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus)
+### [CPA-Manager-Pro pool bundle](deploy/cpamp-pool-server/README.md)
 
-面向 CLIProxyAPI 的完整管理中心，提供请求级监控和费用预估。CPA-Manager 可按账号、模型、渠道、延迟、状态和 token 用量追踪采集到的请求；支持可编辑模型价格与一键同步 LiteLLM 价格来估算费用；用 SQLite 持久化事件；并提供面向 Codex 账号池的批量巡检、配额识别、异常账号定位、清理建议与一键执行能力，适合多账号池的日常运维管理。
+已发布的 CPA Manager Plus 配套包，镜像同时包含 Manager 和 Agent；源码与完整功能说明见
+[CPA-Manager-Pro](https://github.com/abc124774961/CPA-Manager-Pro)。
 
 ## SDK 文档
 

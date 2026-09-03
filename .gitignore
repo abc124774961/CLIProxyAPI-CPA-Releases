@@ -38,6 +38,8 @@ auths/*
 
 # Documentation
 docs/*
+!docs/deployment-cpa-cpamp.md
+!docs/deployment-cpa-cpamp.zh-CN.md
 AGENTS.md
 CLAUDE.md
 GEMINI.md

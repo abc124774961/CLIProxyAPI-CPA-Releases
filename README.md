@@ -4,6 +4,20 @@ English | [中文](README_CN.md) | [日本語](README_JA.md)
 
 ## CPA-Pro public releases
 
+This repository is the public release hub for the CPA CLI and the matching
+CPAMP (Manager + Agent) pool image. It keeps release tags, immutable image
+digests, checksums, and short deployment references; feature source is
+maintained separately in [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)
+and [CPA-Manager-Pro](https://github.com/abc124774961/CPA-Manager-Pro).
+
+Start here:
+
+- [Release index](RELEASES.md) / [中文版本目录](RELEASES_CN.md)
+- [Unified CPA CLI + CPAMP deployment](docs/deployment-cpa-cpamp.md)
+- [CPAMP release template](deploy/cpamp-pool-server/README.md)
+- [Machine-readable release catalog](release-catalog.json)
+- [Pinned license and runtime manifest](release-manifest.json)
+
 Customer CPA deployments use the pinned release tags in
 [`abc124774961/CLIProxyAPI-CPA-Releases`](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases),
 not a mutable development branch or `latest` image. The release bundle pins the
@@ -157,9 +171,11 @@ Since v6.10.0, CLIProxyAPI and [CPAMC](https://github.com/router-for-me/Cli-Prox
 
 Standalone persistence and visualization service for CLIProxyAPI, with periodic data sync, SQLite storage, aggregate APIs, and a built-in dashboard for usage and statistics.
 
-### [CPA-Manager-Plus](https://github.com/seakee/CPA-Manager-Plus)
+### [CPA-Manager-Pro pool bundle](deploy/cpamp-pool-server/README.md)
 
-Full CLIProxyAPI management center with request-level monitoring and cost estimates. CPA-Manager tracks collected requests by account, model, channel, latency, status, and token usage; estimates cost with editable model prices and one-click LiteLLM price sync; persists events in SQLite; and provides Codex account-pool operations with batch inspection, quota detection, unhealthy account discovery, cleanup suggestions, and one-click execution for day-to-day multi-account maintenance.
+Published CPA Manager Plus bundle with request-level monitoring and cost estimates. The release image includes both the
+Manager and Agent binaries. See [CPA-Manager-Pro](https://github.com/abc124774961/CPA-Manager-Pro) for source and full
+feature documentation.
 
 ## SDK Docs
 

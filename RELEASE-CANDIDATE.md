@@ -2,8 +2,12 @@
 
 Customer deployments use the public release repository
 [`abc124774961/CLIProxyAPI-CPA-Releases`](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases)
-and a tag matching `vMAJOR.MINOR.PATCH-cpa.N`. A customer host clones that
-immutable tag, builds the checked-out source, and starts only the CPA service.
+and a tag matching `vMAJOR.MINOR.PATCH-cpa.N`. The matching CPAMP pool bundle is
+published separately as a pinned GHCR image. See [`RELEASES.md`](RELEASES.md),
+[`RELEASES_CN.md`](RELEASES_CN.md), and [`release-catalog.json`](release-catalog.json)
+for the current pair, source references, image digests, and deployment links.
+A customer host may clone the immutable CPA tag or pull the published image;
+the CPAMP stack uses the matching Manager + Agent image from the catalog.
 
 ## Required release gates
 
@@ -31,6 +35,9 @@ immutable tag, builds the checked-out source, and starts only the CPA service.
 8. The installer uses an atomic clone, a per-install lock, a free-space gate,
    storefront preflight, runtime license verification, and previous-image
    rollback for upgrades.
+9. The catalog records both `linux/amd64` and `linux/arm64` for CPA CLI and
+   CPAMP, and the CPAMP image is checked for both `cpa-manager-plus` and
+   `cpamp-agent` binaries.
 
 The public repository must not contain customer `.env`, private signing keys,
 license leases, `data/license`, or plugin artifacts that are encrypted for a

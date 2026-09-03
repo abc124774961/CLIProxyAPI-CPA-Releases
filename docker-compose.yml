@@ -1,6 +1,6 @@
 services:
   cli-proxy-api:
-    image: ${CLI_PROXY_IMAGE:-eceasy/cli-proxy-api:latest}
+    image: ${CLI_PROXY_IMAGE:-ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.3}
     # A customer checkout must run the code in this directory by default.
     # Set CLI_PROXY_PULL_POLICY=always when intentionally using a published
     # image instead of building the checked-out source.

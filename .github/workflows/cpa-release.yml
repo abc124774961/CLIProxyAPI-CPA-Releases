@@ -46,9 +46,19 @@ jobs:
           [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+$ ]]
       - name: Verify public release bundle
         run: scripts/verify-release-bundle.sh "$GITHUB_REF_NAME"
+      - name: Validate CPAMP release template
+        run: |
+          set -euo pipefail
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "$temp_dir"' EXIT
+          cp -a deploy/cpamp-pool-server/. "$temp_dir/"
+          mkdir -p "$temp_dir/secrets"
+          printf '%s\n' 'release-verification-secret' > "$temp_dir/secrets/cpa-license-client-secret"
+          chmod 600 "$temp_dir/secrets/cpa-license-client-secret"
+          (cd "$temp_dir" && ./bootstrap.sh --render)
 
   package:
-    name: Package source bundle
+    name: Package release bundle
     needs: verify
     runs-on: ubuntu-latest
     steps:
@@ -56,7 +66,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-      - name: Create source archive and checksums
+      - name: Create release archive, metadata, and checksums
         run: |
           set -euo pipefail
           version="$GITHUB_REF_NAME"
@@ -64,6 +74,11 @@ jobs:
           archive="dist/CLIProxyAPI-CPA-${version}.tar.gz"
           git archive --format=tar.gz --prefix="CLIProxyAPI-CPA-${version}/" "$version" > "$archive"
           cp release-manifest.json "dist/CLIProxyAPI-CPA-${version}.manifest.json"
+          cp release-catalog.json "dist/CLIProxyAPI-CPA-${version}.catalog.json"
+          cp RELEASES.md "dist/CLIProxyAPI-CPA-${version}.RELEASES.md"
+          cp RELEASES_CN.md "dist/CLIProxyAPI-CPA-${version}.RELEASES_CN.md"
+          cp docs/deployment-cpa-cpamp.md "dist/CLIProxyAPI-CPA-${version}.deployment.md"
+          cp docs/deployment-cpa-cpamp.zh-CN.md "dist/CLIProxyAPI-CPA-${version}.deployment.zh-CN.md"
           (cd dist && sha256sum CLIProxyAPI-CPA-* > checksums.txt)
       - name: Upload release assets
         uses: actions/upload-artifact@v4

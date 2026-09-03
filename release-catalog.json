@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "repository": "abc124774961/CLIProxyAPI-CPA-Releases",
+  "purpose": "Published CPA CLI and CPAMP versions plus deployment references",
+  "manifest": "release-manifest.json",
+  "components": {
+    "cpa_cli": {
+      "display_name": "CLIProxyAPI CPA CLI",
+      "source_repository": "https://github.com/router-for-me/CLIProxyAPI",
+      "release_repository": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases",
+      "current": {
+        "version": "v7.2.148-cpa.3",
+        "tag": "v7.2.148-cpa.3",
+        "release_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.3",
+        "image": "ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.3",
+        "image_digest": "sha256:a7938c5a716127829bd3a7fe524b6fbdf8509f44d1a0c8304983bff642cd8bad",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "checksums_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/download/v7.2.148-cpa.3/checksums.txt",
+        "platform_digests": {
+          "linux/amd64": "sha256:4d30c813c50ed28a2f696e8dfcea3af7b4ad1a6dd6c96cfb078e1f2125a4e494",
+          "linux/arm64": "sha256:5b121107eac403b25c2d23fd453f82271c5497b3eca2313e76c24bdc79b7b694"
+        }
+      },
+      "published_tags": [
+        {
+          "version": "v7.2.148-cpa.3",
+          "tag_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.3",
+          "status": "current"
+        },
+        {
+          "version": "v7.2.148-cpa.2",
+          "tag_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.2",
+          "image": "ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.2",
+          "image_digest": "sha256:e69d46ec096a5b6386b0de4d93a5be9d0a9330d699fd050ad41d9938cb832c7b",
+          "status": "previous"
+        },
+        {
+          "version": "v7.2.148-cpa.1",
+          "tag_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.1",
+          "status": "tag-only"
+        }
+      ]
+    },
+    "cpamp": {
+      "display_name": "CPA Manager Plus pool bundle",
+      "source_repository": "https://github.com/abc124774961/CPA-Manager-Pro",
+      "release_repository": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases",
+      "current": {
+        "version": "v1.12.8-cpa.1",
+        "tag": "cpamp-pool-v1.12.8-cpa.1",
+        "source_commit": "593d3ad53fa4a46f618d0d4ab64d5f916415a04d",
+        "release_url": "https://github.com/abc124774961/CPA-Manager-Pro/actions/runs/33803882344",
+        "image": "ghcr.io/abc124774961/cpa-manager-plus:v1.12.8-cpa.1",
+        "image_digest": "sha256:f1cde753aa222b77a11e387fbf73eeac106a0d78db236fd5f13bf31a0860352b",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "included_binaries": [
+          "cpa-manager-plus",
+          "cpamp-agent"
+        ],
+        "verification_url": "https://github.com/abc124774961/CPA-Manager-Pro/actions/runs/33803882344",
+        "platform_digests": {
+          "linux/amd64": "sha256:39cc8d03994253e7c543e7c65f3cf76458fe55a8363d772aba705f5cc8c821fa",
+          "linux/arm64": "sha256:b6e47c2be050af0b44d9c6c57fae67b1d2736b3c28e9ebd85af6b08a6479d39d"
+        }
+      },
+      "published_tags": [
+        {
+          "version": "v1.12.8-cpa.1",
+          "tag": "cpamp-pool-v1.12.8-cpa.1",
+          "tag_url": "https://github.com/abc124774961/CPA-Manager-Pro/tree/cpamp-pool-v1.12.8-cpa.1",
+          "status": "current"
+        }
+      ]
+    }
+  },
+  "deployment": {
+    "guide_zh_cn": "docs/deployment-cpa-cpamp.zh-CN.md",
+    "guide_en": "docs/deployment-cpa-cpamp.md",
+    "cpamp_template": "deploy/cpamp-pool-server/compose.yml",
+    "cpamp_template_readme": "deploy/cpamp-pool-server/README.md",
+    "license_storefront": "https://p.666ttt.net/api/storefront",
+    "default_grace_period": "6h",
+    "supported_platforms": [
+      "linux/amd64",
+      "linux/arm64"
+    ],
+    "template_dir": "deploy/cpamp-pool-server",
+    "compose_file": "deploy/cpamp-pool-server/compose.yml",
+    "readme": "deploy/cpamp-pool-server/README.md",
+    "source_template": "https://github.com/abc124774961/CPA-Manager-Pro/tree/main/deploy/pool-server"
+  }
+}
