@@ -104,15 +104,49 @@ for env_name, field in (
         raise SystemExit(f"FAIL: {env_name} does not match release-manifest.json")
 if env_values.get("CPA_LICENSE_CLIENT_SECRET"):
     raise SystemExit("FAIL: .env.example contains a customer client secret")
+
+# Parse the small, stable license section in config.example.yaml without
+# requiring PyYAML. Public releases must keep both template sources aligned so
+# a customer who chooses YAML instead of .env receives the same publisher keys.
+config_values = {}
+in_license = False
+for raw_line in Path("config.example.yaml").read_text(encoding="utf-8").splitlines():
+    if re.match(r"^license:\s*(?:#.*)?$", raw_line):
+        in_license = True
+        continue
+    if in_license and raw_line and not raw_line[0].isspace():
+        in_license = False
+    if not in_license:
+        continue
+    match = re.match(r"^\s*(public-key|plugin-public-key|client-id|client-secret):\s*(.*?)\s*$", raw_line)
+    if not match:
+        continue
+    value = re.sub(r"\s+#.*$", "", match.group(2)).strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        value = value[1:-1]
+    config_values[match.group(1)] = value
+for config_name, manifest_name in (
+    ("public-key", "public_key"),
+    ("plugin-public-key", "plugin_public_key"),
+):
+    if config_values.get(config_name) != license_meta.get(manifest_name):
+        raise SystemExit(f"FAIL: config.example.yaml {config_name} does not match release-manifest.json")
+for secret_name in ("client-id", "client-secret"):
+    if config_values.get(secret_name, ""):
+        raise SystemExit(f"FAIL: config.example.yaml contains a customer {secret_name}")
 PY
 
 forbidden="$(git ls-files | awk '
-  /(^|\/)\.env$/ ||
-  /(^|\/)secrets\// ||
-  /(^|\/)data\/license\// ||
-  /(^|\/)internal\/api\/data\// ||
-  /\.private$/ ||
-  /\.s2plugin$/ { print }
+  function ends_with(path, suffix) {
+    return length(path) >= length(suffix) && substr(path, length(path) - length(suffix) + 1) == suffix
+  }
+  {
+    count = split($0, parts, "/")
+    basename = parts[count]
+    if (basename == ".env" || index($0, "/secrets/") || index($0, "/data/license/") || index($0, "/internal/api/data/") || ends_with($0, ".private") || ends_with($0, ".s2plugin")) {
+      print
+    }
+  }
 ')"
 if [[ -n "$forbidden" ]]; then
   echo "FAIL: forbidden customer-specific release paths are tracked:" >&2

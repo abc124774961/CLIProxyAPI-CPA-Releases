@@ -72,6 +72,15 @@ run_checker_with_compose() {
     bash "$checker" --env-file "$env_file" --compose-file "$compose_file" "$@"
 }
 
+assert_contains() {
+  local file="$1"
+  local needle="$2"
+  grep -F -- "$needle" "$file" >/dev/null || {
+    echo "expected $file to contain: $needle" >&2
+    exit 1
+  }
+}
+
 # Existing customers may keep publisher keys in config.yaml rather than .env.
 # The checker should accept that layout while still rendering the same Compose
 # contract.
@@ -83,10 +92,32 @@ remote-management:
   secret-key: "management-test"
 EOF
 cat "$tmp_dir/base.env" | sed \
+  -e 's/^MANAGEMENT_PASSWORD=.*/MANAGEMENT_PASSWORD=/' \
   -e 's/^CPA_LICENSE_PUBLIC_KEY=.*/CPA_LICENSE_PUBLIC_KEY=/' \
+  -e 's/^CPA_LICENSE_PLUGIN_PUBLIC_KEY=.*/CPA_LICENSE_PLUGIN_PUBLIC_KEY=/' \
   -e "s#^CLI_PROXY_CONFIG_PATH=.*#CLI_PROXY_CONFIG_PATH=$tmp_dir/config-with-key.yaml#" \
   > "$tmp_dir/config-key.env"
-run_checker "$tmp_dir/config-key.env" >/dev/null
+config_key_output="$tmp_dir/config-key.output"
+run_checker "$tmp_dir/config-key.env" >"$config_key_output"
+assert_contains "$config_key_output" "CPA_LICENSE_PUBLIC_KEY decodes to an Ed25519 public key (source: config.yaml)"
+assert_contains "$config_key_output" "CPA_LICENSE_PLUGIN_PUBLIC_KEY decodes to an Ed25519 public key (source: config.yaml)"
+
+# Relative config paths must be resolved from the Compose file directory for
+# both public-key and management-key checks. This mirrors Docker Compose when
+# the customer keeps a copied compose file in a separate deployment folder.
+mkdir -p "$tmp_dir/relative-compose"
+cp "$tmp_dir/docker-compose.yml" "$tmp_dir/relative-compose/docker-compose.yml"
+cp "$tmp_dir/config-with-key.yaml" "$tmp_dir/relative-compose/config.yaml"
+cat "$tmp_dir/base.env" | sed \
+  -e 's/^MANAGEMENT_PASSWORD=.*/MANAGEMENT_PASSWORD=/' \
+  -e 's/^CPA_LICENSE_PUBLIC_KEY=.*/CPA_LICENSE_PUBLIC_KEY=/' \
+  -e 's/^CPA_LICENSE_PLUGIN_PUBLIC_KEY=.*/CPA_LICENSE_PLUGIN_PUBLIC_KEY=/' \
+  -e 's#^CLI_PROXY_CONFIG_PATH=.*#CLI_PROXY_CONFIG_PATH=config.yaml#' \
+  > "$tmp_dir/relative-compose.env"
+relative_output="$tmp_dir/relative-compose.output"
+run_checker_with_compose "$tmp_dir/relative-compose.env" "$tmp_dir/relative-compose/docker-compose.yml" >"$relative_output"
+assert_contains "$relative_output" "CPA_LICENSE_PUBLIC_KEY decodes to an Ed25519 public key (source: config.yaml)"
+assert_contains "$relative_output" "management key is configured in config.yaml"
 
 assert_license_mount_source() {
   local env_file="$1"
@@ -103,15 +134,6 @@ assert_license_mount_source() {
   ')"
   [[ "$source" == "$expected" ]] || {
     echo "expected license mount source $expected, got $source" >&2
-    exit 1
-  }
-}
-
-assert_contains() {
-  local file="$1"
-  local needle="$2"
-  grep -F -- "$needle" "$file" >/dev/null || {
-    echo "expected $file to contain: $needle" >&2
     exit 1
   }
 }

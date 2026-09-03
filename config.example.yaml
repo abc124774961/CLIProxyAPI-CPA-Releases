@@ -54,6 +54,8 @@ license:
   verify-path: "/licenses/verify"
   grace-path: "/licenses/grace"
   refresh-interval: "10m"
+  # Local network-failure fallback is capped at 6h in the release binary;
+  # storefront-signed grace_until/expiry_grace_until remains authoritative.
   grace-period: "6h"
   instance-binding: "strict"
   storage-key: ""

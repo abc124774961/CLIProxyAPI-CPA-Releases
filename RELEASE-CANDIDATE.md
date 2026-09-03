@@ -14,15 +14,21 @@ immutable tag, builds the checked-out source, and starts only the CPA service.
    `--provider` is used, configure a documented non-mutating storefront
    preflight URL and complete JSON body; only HTTP 2xx is accepted.
 4. The storefront exposes `POST /api/storefront/licenses/grace` and accepts
-   the configured client credentials. A 400/401/403/404/405 or 5xx from the
-   preflight is a release blocker; the live grace route must never be probed
-   with an empty request because it can create a persisted lease.
+   the configured client credentials for the real first-install flow. If the
+   optional `--provider` check is enabled, it uses a separate documented
+   non-mutating preflight URL and complete JSON body; a 400/401/403/404/405 or
+   5xx from that preflight is a release blocker. The live grace route must
+   never be probed with an empty request because it can create a persisted
+   lease.
 5. The release tag and commit are recorded in the release notes together with
    SHA256 checksums for any published archives.
 6. `release-manifest.json`, `.env.example`, and `config.example.yaml` contain
    the same release-pinned license and plugin public keys. Customer secrets are
    never included.
-7. The installer uses an atomic clone, a per-install lock, a free-space gate,
+7. `license.grace-period` is only a bounded local network-failure fallback and
+   is capped at six hours in the release binary; storefront-signed
+   `grace_until`/`expiry_grace_until` values remain authoritative.
+8. The installer uses an atomic clone, a per-install lock, a free-space gate,
    storefront preflight, runtime license verification, and previous-image
    rollback for upgrades.
 

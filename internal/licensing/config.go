@@ -15,6 +15,11 @@ const (
 	defaultProvider       = "shop666"
 	defaultProductCode    = "CPA"
 	defaultShopAPIBaseURL = "https://p.666ttt.net/api/storefront"
+	// Local fail-open handling is a bounded network-failure fallback. The
+	// storefront remains authoritative for signed grace and expiry-grace
+	// windows; customer configuration cannot extend the local fallback beyond
+	// the published six-hour policy.
+	maxLocalGracePeriod = 6 * time.Hour
 )
 
 type Config struct {
@@ -81,7 +86,7 @@ func ConfigFromOptions(options Options) (Config, error) {
 		VerifyPath:                  cleanPath(options.VerifyPath, "/licenses/verify"),
 		GracePath:                   cleanPath(options.GracePath, "/licenses/grace"),
 		RefreshInterval:             parseDuration(options.RefreshInterval, 10*time.Minute, time.Minute),
-		GracePeriod:                 parseDuration(options.GracePeriod, 6*time.Hour, 0),
+		GracePeriod:                 clampLocalGracePeriod(parseDuration(options.GracePeriod, maxLocalGracePeriod, 0)),
 		InstanceBinding:             strings.ToLower(strings.TrimSpace(options.InstanceBinding)),
 		FailOpenDuringGrace:         true,
 		RejectNewRequestAfterExpiry: true,
@@ -180,8 +185,18 @@ func applyEnvironmentOverrides(cfg *Config) {
 		cfg.RefreshInterval = parseDuration(value, cfg.RefreshInterval, time.Minute)
 	}
 	if value := strings.TrimSpace(os.Getenv("CPA_LICENSE_GRACE_PERIOD")); value != "" {
-		cfg.GracePeriod = parseDuration(value, cfg.GracePeriod, 0)
+		cfg.GracePeriod = clampLocalGracePeriod(parseDuration(value, cfg.GracePeriod, 0))
 	}
+}
+
+func clampLocalGracePeriod(value time.Duration) time.Duration {
+	if value < 0 {
+		return 0
+	}
+	if value > maxLocalGracePeriod {
+		return maxLocalGracePeriod
+	}
+	return value
 }
 
 func parseDuration(value string, fallback, minimum time.Duration) time.Duration {

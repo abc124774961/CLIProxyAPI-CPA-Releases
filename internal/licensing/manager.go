@@ -69,6 +69,11 @@ func Initialize() (*Manager, error) {
 // CPA configuration. A configuration or storage failure remains visible as a
 // fail-closed state.
 func InitializeWithConfig(cfg Config) (*Manager, error) {
+	// ConfigFromOptions already applies this bound, but callers may construct a
+	// Config directly (including embedded SDK users). Clamp again at the manager
+	// boundary so local network-failure fallback cannot be enlarged by a custom
+	// integration or a hot-reloaded config value.
+	cfg.GracePeriod = clampLocalGracePeriod(cfg.GracePeriod)
 	id, err := instanceID(cfg.StateDir)
 	if err != nil {
 		// Keep a fail-closed manager visible to the relay middleware. Returning a
@@ -675,6 +680,7 @@ func (m *Manager) checkLocked(feature string) (bool, string) {
 	if !m.integrityValid {
 		return false, "integrity_failed"
 	}
+	localGracePeriod := clampLocalGracePeriod(m.cfg.GracePeriod)
 	if m.standard != nil {
 		result := *m.standard
 		now := time.Now()
@@ -688,7 +694,7 @@ func (m *Manager) checkLocked(feature string) (bool, string) {
 			}
 			return false, "feature_not_enabled"
 		}
-		if result.LastVerifiedAt > 0 && m.cfg.FailOpenDuringGrace && now.Sub(lastVerified) <= m.cfg.GracePeriod {
+		if result.LastVerifiedAt > 0 && m.cfg.FailOpenDuringGrace && now.Sub(lastVerified) <= localGracePeriod {
 			return true, "grace"
 		}
 		return false, "lease_expired"
@@ -714,7 +720,7 @@ func (m *Manager) checkLocked(feature string) (bool, string) {
 		return false, "license_expired"
 	}
 	if lease.LeaseExpiresAt > 0 && now > lease.LeaseExpiresAt {
-		if m.cfg.FailOpenDuringGrace && now <= lease.LeaseExpiresAt+int64(m.cfg.GracePeriod.Seconds()) {
+		if m.cfg.FailOpenDuringGrace && now <= lease.LeaseExpiresAt+int64(localGracePeriod.Seconds()) {
 			return true, "grace"
 		}
 		if m.cfg.RejectNewRequestAfterExpiry {

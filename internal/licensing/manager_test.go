@@ -77,6 +77,54 @@ func TestExpiredLicenseUsesSignedExpiryGrace(t *testing.T) {
 	}
 }
 
+func TestLocalFallbackGracePeriodIsCapped(t *testing.T) {
+	now := time.Now()
+	standard := &StandardResult{
+		LicenseID:       "standard-license",
+		LicenseKey:      "standard-key",
+		MachineCode:     "machine-code",
+		VerificationURL: "http://127.0.0.1:18320/verify",
+		ExpiresAt:       now.Add(24 * time.Hour).UTC().Format(time.RFC3339),
+		LastVerifiedAt:  now.Add(-7 * time.Hour).Unix(),
+	}
+	standardManager := &Manager{
+		cfg:              Config{ProductCode: "CPA", FailOpenDuringGrace: true, GracePeriod: 48 * time.Hour},
+		standard:         standard,
+		integrityValid:   true,
+		integrityChecked: false,
+	}
+	if allowed, reason := standardManager.Check("core"); allowed || reason != "lease_expired" {
+		t.Fatalf("standard fallback exceeded six-hour cap: got %v/%s", allowed, reason)
+	}
+	standard.LastVerifiedAt = now.Add(-5 * time.Hour).Unix()
+	if allowed, reason := standardManager.Check("core"); !allowed || reason != "grace" {
+		t.Fatalf("standard fallback inside six-hour cap was rejected: got %v/%s", allowed, reason)
+	}
+
+	modernManager := &Manager{
+		cfg: Config{
+			ProductCode:                 "CPA",
+			FailOpenDuringGrace:         true,
+			GracePeriod:                 48 * time.Hour,
+			RejectNewRequestAfterExpiry: true,
+		},
+		instance:       "i",
+		integrityValid: true,
+		lease: &SignedLease{Lease: Lease{
+			LicenseID: "signed-license", ProductCode: "CPA", InstanceID: "i",
+			IssuedAt: now.Add(-24 * time.Hour).Unix(), ExpiresAt: now.Add(24 * time.Hour).Unix(),
+			LeaseExpiresAt: now.Add(-7 * time.Hour).Unix(), Nonce: "n",
+		}},
+	}
+	if allowed, reason := modernManager.Check("core"); allowed || reason != "lease_expired" {
+		t.Fatalf("signed lease fallback exceeded six-hour cap: got %v/%s", allowed, reason)
+	}
+	modernManager.lease.Lease.LeaseExpiresAt = now.Add(-5 * time.Hour).Unix()
+	if allowed, reason := modernManager.Check("core"); !allowed || reason != "grace" {
+		t.Fatalf("signed lease fallback inside six-hour cap was rejected: got %v/%s", allowed, reason)
+	}
+}
+
 func TestStrictFeatureGateRequiresExplicitFeature(t *testing.T) {
 	now := time.Now().Unix()
 	m := &Manager{cfg: Config{}, instance: "i", integrityValid: true}

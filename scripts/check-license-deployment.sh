@@ -155,41 +155,67 @@ yaml_license_value() {
   local key="$2"
   [[ -f "$path" && -r "$path" ]] || return 0
   awk -v wanted="$key" '
+    function trim(s) {
+      sub(/^[[:space:]]+/, "", s)
+      sub(/[[:space:]]+$/, "", s)
+      return s
+    }
     /^[[:space:]]*license:[[:space:]]*(#.*)?$/ { in_section=1; next }
     in_section && /^[^[:space:]]/ { in_section=0 }
-    in_section && $0 ~ "^[[:space:]]+" wanted ":" {
-      value=$0
+    in_section && /^[[:space:]]+/ {
+      line=$0
+      sub(/^[[:space:]]+/, "", line)
+      name=line
+      sub(/:.*/, "", name)
+      if (trim(name) != wanted) next
+      value=line
       sub(/^[^:]*:[[:space:]]*/, "", value)
       sub(/[[:space:]]+#.*$/, "", value)
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-      if (value ~ /^\".*\"$/) value=substr(value, 2, length(value)-2)
-      else if (value ~ /^\047.*\047$/) value=substr(value, 2, length(value)-2)
+      value=trim(value)
+      double_quote=sprintf("%c", 34)
+      single_quote=sprintf("%c", 39)
+      first=substr(value, 1, 1)
+      last=substr(value, length(value), 1)
+      if (length(value) >= 2 && ((first == double_quote && last == double_quote) || (first == single_quote && last == single_quote))) {
+        value=substr(value, 2, length(value)-2)
+      }
       print value
       exit
     }
   ' "$path"
 }
 
-config_path="$(dotenv_value CLI_PROXY_CONFIG_PATH)"
-[[ -n "$config_path" ]] || config_path="config.yaml"
-case "$config_path" in
-  "~") config_path="${HOME:-}" ;;
-  "~/"*) [[ -n "${HOME:-}" ]] && config_path="$HOME/${config_path#~/}" ;;
-  /*) ;;
-  *) config_path="$compose_dir/$config_path" ;;
-esac
-public_key="$(dotenv_value CPA_LICENSE_PUBLIC_KEY)"
-public_key_source="environment"
-if [[ -z "$public_key" ]]; then
-  public_key="$(yaml_license_value "$config_path" public-key)"
-  public_key_source="config.yaml"
-fi
-if [[ -z "$public_key" ]]; then
-  fail "CPA_LICENSE_PUBLIC_KEY is empty and license.public-key is missing from $config_path; provide the storefront Ed25519 public key"
-elif ! command -v python3 >/dev/null 2>&1; then
-  fail "python3 is required to validate the Ed25519 public key"
-else
-  if python3 - "$public_key" <<'PY'
+# Resolve a config path exactly as Docker Compose resolves a relative bind
+# mount: relative paths are rooted at the Compose file directory, while `~`
+# paths are rooted at the invoking user's home directory. Keeping this in one
+# helper prevents public-key and management-key checks from reading different
+# files when a customer uses a custom Compose location.
+resolve_config_path() {
+  local path="$1"
+  case "$path" in
+    "~")
+      if [[ -n "${HOME:-}" ]]; then
+        printf '%s' "$HOME"
+      fi
+      ;;
+    "~/"*)
+      if [[ -n "${HOME:-}" ]]; then
+        printf '%s/%s' "$HOME" "${path#~/}"
+      fi
+      ;;
+    /*)
+      printf '%s' "$path"
+      ;;
+    *)
+      printf '%s/%s' "$compose_dir" "$path"
+      ;;
+  esac
+  return 0
+}
+
+validate_ed25519_public_key() {
+  local value="$1"
+  python3 - "$value" <<'PY'
 import base64
 import binascii
 import sys
@@ -210,12 +236,59 @@ if decoded is None:
     except ValueError:
         decoded = None
 if decoded is None or len(decoded) != 32:
-    sys.exit(1)
+    raise SystemExit(1)
 PY
+}
+
+config_path="$(dotenv_value CLI_PROXY_CONFIG_PATH)"
+[[ -n "$config_path" ]] || config_path="config.yaml"
+config_path="$(resolve_config_path "$config_path")"
+public_key="$(dotenv_value CPA_LICENSE_PUBLIC_KEY)"
+public_key_source="environment"
+if [[ -z "$public_key" ]]; then
+  public_key="$(yaml_license_value "$config_path" public-key)"
+  public_key_source="config.yaml"
+fi
+plugin_public_key="$(dotenv_value CPA_LICENSE_PLUGIN_PUBLIC_KEY)"
+plugin_public_key_source="environment"
+if [[ -z "$plugin_public_key" ]]; then
+  plugin_public_key="$(yaml_license_value "$config_path" plugin-public-key)"
+  plugin_public_key_source="config.yaml"
+fi
+if [[ -z "$plugin_public_key" && -n "$public_key" ]]; then
+  # Legacy configurations used one publisher key for both lease and plugin
+  # signatures. Match the runtime fallback so old customer deployments remain
+  # valid while a dedicated plugin key can still be checked when present.
+  plugin_public_key="$public_key"
+  plugin_public_key_source="same-as-public-key"
+fi
+if [[ -z "$public_key" ]]; then
+  fail "CPA_LICENSE_PUBLIC_KEY is empty and license.public-key is missing from $config_path; provide the storefront Ed25519 public key"
+elif ! command -v python3 >/dev/null 2>&1; then
+  fail "python3 is required to validate the Ed25519 public key"
+else
+  python_available=1
+  if validate_ed25519_public_key "$public_key"
   then
     pass "CPA_LICENSE_PUBLIC_KEY decodes to an Ed25519 public key (source: $public_key_source)"
   else
     fail "CPA_LICENSE_PUBLIC_KEY is not a 32-byte base64/base64url/hex Ed25519 key"
+  fi
+fi
+if [[ -n "$plugin_public_key" ]]; then
+  if [[ "${python_available:-0}" != "1" ]]; then
+    if command -v python3 >/dev/null 2>&1; then
+      python_available=1
+    else
+      fail "python3 is required to validate the plugin Ed25519 public key"
+    fi
+  fi
+  if [[ "${python_available:-0}" == "1" ]]; then
+    if validate_ed25519_public_key "$plugin_public_key"; then
+      pass "CPA_LICENSE_PLUGIN_PUBLIC_KEY decodes to an Ed25519 public key (source: $plugin_public_key_source)"
+    else
+      fail "CPA_LICENSE_PLUGIN_PUBLIC_KEY is not a 32-byte base64/base64url/hex Ed25519 key"
+    fi
   fi
 fi
 
@@ -268,20 +341,28 @@ for callback_spec in \
 done
 
 management_password="$(dotenv_value MANAGEMENT_PASSWORD)"
-config_path="$(dotenv_value CLI_PROXY_CONFIG_PATH)"
-[[ -n "$config_path" ]] || config_path="config.yaml"
-if [[ "$config_path" != /* ]]; then
-  config_path="$repo_root/$config_path"
-fi
 if [[ -n "$management_password" ]]; then
   pass "MANAGEMENT_PASSWORD is supplied to the container"
 elif [[ -f "$config_path" ]] && awk '
+  function trim(s) {
+    sub(/^[[:space:]]+/, "", s)
+    sub(/[[:space:]]+$/, "", s)
+    return s
+  }
   $0 ~ /^remote-management:/ { in_section=1; next }
   in_section && $0 ~ /^[^[:space:]]/ { in_section=0 }
   in_section && $0 ~ /^[[:space:]]+secret-key:/ {
     value = $0
     sub(/^[^:]*:[[:space:]]*/, "", value)
-    gsub(/[[:space:]\042]/, "", value)
+    sub(/[[:space:]]+#.*$/, "", value)
+    value = trim(value)
+    double_quote = sprintf("%c", 34)
+    single_quote = sprintf("%c", 39)
+    first = substr(value, 1, 1)
+    last = substr(value, length(value), 1)
+    if (length(value) >= 2 && ((first == double_quote && last == double_quote) || (first == single_quote && last == single_quote))) {
+      value = substr(value, 2, length(value) - 2)
+    }
     if (value != "") found=1
   }
   END { exit(found ? 0 : 1) }
@@ -406,7 +487,7 @@ if [[ -f "$env_file" && -f "$compose_file" ]]; then
         value=$0
         sub(/^[^:]*:[[:space:]]*/, "", value)
         gsub(/[[:space:]]/, "", value)
-        gsub(/\"/, "", value)
+        gsub(/"/, "", value)
         if (value == port) found=1
         target=0
         next

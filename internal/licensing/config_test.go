@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestLoadConfigDefaultsAndForcedEnablement(t *testing.T) {
@@ -75,5 +76,50 @@ func TestClientSecretFileDoesNotEraseDirectSecretWhenEmpty(t *testing.T) {
 	}
 	if cfg.ClientSecret != "direct-secret" {
 		t.Fatalf("empty secret file erased direct secret: %q", cfg.ClientSecret)
+	}
+}
+
+func TestLoadConfigCapsCustomerGracePeriod(t *testing.T) {
+	pub, _, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CPA_LICENSE_PUBLIC_KEY", base64.RawURLEncoding.EncodeToString(pub))
+	t.Setenv("CPA_LICENSE_GRACE_PERIOD", "48h")
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.GracePeriod != maxLocalGracePeriod {
+		t.Fatalf("grace period was not capped: got %s want %s", cfg.GracePeriod, maxLocalGracePeriod)
+	}
+}
+
+func TestConfigFromOptionsCapsYamlGracePeriod(t *testing.T) {
+	pub, _, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CPA_LICENSE_PUBLIC_KEY", base64.RawURLEncoding.EncodeToString(pub))
+	t.Setenv("CPA_LICENSE_GRACE_PERIOD", "")
+
+	cfg, err := ConfigFromOptions(Options{
+		PublicKey:   base64.RawURLEncoding.EncodeToString(pub),
+		GracePeriod: "12h",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.GracePeriod != maxLocalGracePeriod {
+		t.Fatalf("YAML grace period was not capped: got %s want %s", cfg.GracePeriod, maxLocalGracePeriod)
+	}
+
+	cfg, err = ConfigFromOptions(Options{PublicKey: base64.RawURLEncoding.EncodeToString(pub), GracePeriod: "90m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.GracePeriod != 90*time.Minute {
+		t.Fatalf("valid grace period changed unexpectedly: got %s", cfg.GracePeriod)
 	}
 }

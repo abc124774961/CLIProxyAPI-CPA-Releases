@@ -171,15 +171,14 @@ yaml_management_key() {
       value = $0
       sub(/^[^:]*:[[:space:]]*/, "", value)
       value = trim(value)
-      if (value ~ /^"[^"]*"[[:space:]]*(#.*)?$/) {
-        sub(/[[:space:]]+#.*$/, "", value)
+      sub(/[[:space:]]+#.*$/, "", value)
+      value = trim(value)
+      double_quote = sprintf("%c", 34)
+      single_quote = sprintf("%c", 39)
+      first = substr(value, 1, 1)
+      last = substr(value, length(value), 1)
+      if (length(value) >= 2 && ((first == double_quote && last == double_quote) || (first == single_quote && last == single_quote))) {
         value = substr(value, 2, length(value) - 2)
-      } else if (value ~ /^\047[^\047]*\047[[:space:]]*(#.*)?$/) {
-        sub(/[[:space:]]+#.*$/, "", value)
-        value = substr(value, 2, length(value) - 2)
-      } else {
-        sub(/[[:space:]]+#.*$/, "", value)
-        value = trim(value)
       }
       print value
       exit

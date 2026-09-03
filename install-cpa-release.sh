@@ -125,15 +125,14 @@ yaml_management_key() {
       value = $0
       sub(/^[^:]*:[[:space:]]*/, "", value)
       value = trim(value)
-      if (value ~ /^"[^"]*"[[:space:]]*(#.*)?$/) {
-        sub(/[[:space:]]+#.*$/, "", value)
+      sub(/[[:space:]]+#.*$/, "", value)
+      value = trim(value)
+      double_quote = sprintf("%c", 34)
+      single_quote = sprintf("%c", 39)
+      first = substr(value, 1, 1)
+      last = substr(value, length(value), 1)
+      if (length(value) >= 2 && ((first == double_quote && last == double_quote) || (first == single_quote && last == single_quote))) {
         value = substr(value, 2, length(value) - 2)
-      } else if (value ~ /^\047[^\047]*\047[[:space:]]*(#.*)?$/) {
-        sub(/[[:space:]]+#.*$/, "", value)
-        value = substr(value, 2, length(value) - 2)
-      } else {
-        sub(/[[:space:]]+#.*$/, "", value)
-        value = trim(value)
       }
       print value
       exit
@@ -148,7 +147,16 @@ is_bcrypt_hash() {
 port_is_listening() {
   local port="$1"
   if command -v ss >/dev/null 2>&1; then
-    ss -H -ltn 2>/dev/null | awk -v port=":$port" '$4 ~ port "$" || $4 ~ port "\\]$" { found=1 } END { exit(found ? 0 : 1) }'
+    # Compare the endpoint suffix directly instead of building a dynamic
+    # regular expression. Some Linux awk implementations warn about the
+    # escaped closing bracket used by the previous expression; a numeric port
+    # suffix is sufficient for IPv4, IPv6, wildcard, and loopback listeners.
+    ss -H -ltn 2>/dev/null | awk -v suffix=":$port" '
+      length($4) >= length(suffix) && substr($4, length($4) - length(suffix) + 1) == suffix {
+        found = 1
+      }
+      END { exit(found ? 0 : 1) }
+    '
     return $?
   fi
   if command -v lsof >/dev/null 2>&1; then
