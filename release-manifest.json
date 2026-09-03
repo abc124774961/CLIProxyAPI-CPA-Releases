@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "repository": "abc124774961/CLIProxyAPI-CPA-Releases",
+  "version": "v7.2.148-cpa.1",
+  "license": {
+    "provider": "shop666",
+    "product_code": "CPA",
+    "api_base_url": "https://p.666ttt.net/api/storefront",
+    "public_key": "kJhDRBpfneFdURvPXwiGW3XAmPrd2HVVORfHzP-eYTg",
+    "public_key_sha256": "30824bec9be0a2e2825dd13a51440c97bc8933830ccd796ba2ccb94159a82c6c",
+    "plugin_public_key": "OHRHVVIlFC34K-5AQUkOPcZLeiSpeX_n_VPbrH3agXQ",
+    "plugin_public_key_sha256": "b44d49b328fe473af3e92f612cbec947d3de9ba48497c503bb4e1f3fe912d516",
+    "grace_authority": "storefront",
+    "default_grace_period": "6h"
+  },
+  "runtime": {
+    "compose_file": "docker-compose.yml",
+    "service": "cli-proxy-api",
+    "port": 8317,
+    "license_state_path": "data/license",
+    "supported_platforms": [
+      "linux/amd64",
+      "linux/arm64"
+    ]
+  }
+}

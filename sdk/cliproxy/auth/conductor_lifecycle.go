@@ -1,0 +1,346 @@
+package auth
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	internalconfig "github.com/router-for-me/CLIProxyAPI/v7/internal/config"
+)
+
+// SetRetryConfig updates retry attempts, credential retry limit and cooldown wait interval.
+func (m *Manager) SetRetryConfig(retry int, maxRetryInterval time.Duration, maxRetryCredentials int) {
+	if m == nil {
+		return
+	}
+	if retry < 0 {
+		retry = 0
+	}
+	if maxRetryCredentials < 0 {
+		maxRetryCredentials = 0
+	}
+	if maxRetryInterval < 0 {
+		maxRetryInterval = 0
+	}
+	m.requestRetry.Store(int32(retry))
+	m.maxRetryCredentials.Store(int32(maxRetryCredentials))
+	m.maxRetryInterval.Store(maxRetryInterval.Nanoseconds())
+}
+
+// RegisterExecutor registers a provider executor with the manager.
+func (m *Manager) RegisterExecutor(executor ProviderExecutor) {
+	if executor == nil {
+		return
+	}
+	provider := strings.TrimSpace(executor.Identifier())
+	if provider == "" {
+		return
+	}
+
+	var replaced ProviderExecutor
+	m.mu.Lock()
+	replaced = m.executors[provider]
+	m.executors[provider] = executor
+	m.mu.Unlock()
+
+	if replaced == nil || replaced == executor {
+		return
+	}
+	if closer, ok := replaced.(ExecutionSessionCloser); ok && closer != nil {
+		closer.CloseExecutionSession(CloseAllExecutionSessionsID)
+	}
+}
+
+// UnregisterExecutor removes the executor associated with the provider key.
+func (m *Manager) UnregisterExecutor(provider string) {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	if provider == "" {
+		return
+	}
+	m.mu.Lock()
+	delete(m.executors, provider)
+	m.mu.Unlock()
+}
+
+// Register inserts a new auth entry into the manager.
+func (m *Manager) Register(ctx context.Context, auth *Auth) (*Auth, error) {
+	if auth == nil {
+		return nil, nil
+	}
+	auth.syncGroupIDsFromMetadata()
+	ApplyInitializationStateFromMetadata(auth)
+	if errWeight := ValidateAuthWeight(auth); errWeight != nil {
+		return nil, fmt.Errorf("register auth: %w", errWeight)
+	}
+	if auth.ID == "" {
+		auth.ID = uuid.NewString()
+	}
+	now := time.Now()
+	cooldownStateChanged := normalizeModelStates(auth)
+	if m.cooldownDisabledForAuth(auth) || auth.Disabled || auth.Status == StatusDisabled {
+		cooldownStateChanged = clearCooldownStateForAuth(auth, now) || cooldownStateChanged
+	}
+	auth.EnsureIndex()
+	stored := auth.Clone()
+	schedulerSnapshot := stored.Clone()
+	m.mu.Lock()
+	m.auths[auth.ID] = stored
+	m.mu.Unlock()
+	m.refreshCodexTailBurstCandidates()
+	if !shouldDeferAPIKeyModelAliasRebuild(ctx) {
+		m.rebuildAPIKeyModelAliasFromRuntimeConfig()
+	}
+	if m.scheduler != nil {
+		m.scheduler.upsertAuth(schedulerSnapshot)
+	}
+	m.queueRefreshReschedule(auth.ID)
+	m.queueLifecycleRecovery(auth.ID)
+	_ = m.persist(ctx, auth)
+	m.hook.OnAuthRegistered(ctx, auth.Clone())
+	if cooldownStateChanged {
+		m.persistCooldownStates(ctx)
+	}
+	return auth.Clone(), nil
+}
+
+// Update replaces an existing auth entry and notifies hooks.
+func (m *Manager) Update(ctx context.Context, auth *Auth) (*Auth, error) {
+	if auth == nil || auth.ID == "" {
+		return nil, nil
+	}
+	auth.syncGroupIDsFromMetadata()
+	ApplyInitializationStateFromMetadata(auth)
+	if errWeight := ValidateAuthWeight(auth); errWeight != nil {
+		return nil, fmt.Errorf("update auth: %w", errWeight)
+	}
+	m.mu.Lock()
+	existing, ok := m.auths[auth.ID]
+	if !ok || existing == nil {
+		m.mu.Unlock()
+		return nil, nil
+	}
+	if !auth.indexAssigned && auth.Index == "" {
+		auth.Index = existing.Index
+		auth.indexAssigned = existing.indexAssigned
+	}
+	if shouldPreserveRuntimeOnUpdate(ctx) && auth.Runtime == nil {
+		auth.Runtime = existing.Runtime
+	}
+	auth.Success = existing.Success
+	auth.Failed = existing.Failed
+	auth.recentRequests = existing.recentRequests
+	auth.runtimeLimits = existing.ensureRuntimeLimits()
+	if !existing.Disabled && existing.Status != StatusDisabled && !auth.Disabled && auth.Status != StatusDisabled {
+		if len(auth.ModelStates) == 0 && len(existing.ModelStates) > 0 {
+			auth.ModelStates = existing.ModelStates
+		}
+	}
+	now := time.Now()
+	cooldownStateChanged := normalizeModelStates(auth)
+	if m.cooldownDisabledForAuth(auth) || auth.Disabled || auth.Status == StatusDisabled {
+		cooldownStateChanged = clearCooldownStateForAuth(auth, now) || cooldownStateChanged
+	}
+	auth.EnsureIndex()
+	stored := auth.Clone()
+	schedulerSnapshot := stored.Clone()
+	m.auths[auth.ID] = stored
+	m.mu.Unlock()
+	m.refreshCodexTailBurstCandidates()
+	if !shouldDeferAPIKeyModelAliasRebuild(ctx) {
+		m.rebuildAPIKeyModelAliasFromRuntimeConfig()
+	}
+	if m.scheduler != nil {
+		m.scheduler.upsertAuth(schedulerSnapshot)
+	}
+	m.queueRefreshReschedule(auth.ID)
+	m.queueLifecycleRecovery(auth.ID)
+	_ = m.persist(ctx, auth)
+	m.hook.OnAuthUpdated(ctx, auth.Clone())
+	if cooldownStateChanged {
+		m.persistCooldownStates(ctx)
+	}
+	return auth.Clone(), nil
+}
+
+// Remove deletes an auth from runtime state without persisting.
+// Disk and token-store deletion must be handled by the caller.
+func (m *Manager) Remove(ctx context.Context, id string) {
+	if m == nil {
+		return
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return
+	}
+	_ = ctx
+
+	m.mu.Lock()
+	existing := m.auths[id]
+	provider := ""
+	if existing != nil {
+		provider = strings.TrimSpace(existing.Provider)
+		delete(m.auths, id)
+	}
+	if m.modelPoolOffsets != nil {
+		delete(m.modelPoolOffsets, id)
+	}
+	for sessionID, sessionAuths := range m.homeRuntimeAuths {
+		if sessionAuths == nil {
+			continue
+		}
+		delete(sessionAuths, id)
+		if len(sessionAuths) == 0 {
+			delete(m.homeRuntimeAuths, sessionID)
+		}
+	}
+	for sessionID, owners := range m.homeRuntimeAuthOwners {
+		if owners == nil {
+			continue
+		}
+		delete(owners, id)
+		if len(owners) == 0 {
+			delete(m.homeRuntimeAuthOwners, sessionID)
+		}
+	}
+	selections := make([]*HomeDispatchSelection, 0)
+	for sessionID, sessionSelections := range m.homeSessionSelections {
+		for key, selection := range sessionSelections {
+			if key.credentialID != id {
+				continue
+			}
+			delete(sessionSelections, key)
+			if selection != nil {
+				selections = append(selections, selection)
+			}
+		}
+		if len(sessionSelections) == 0 {
+			delete(m.homeSessionSelections, sessionID)
+		}
+	}
+	m.mu.Unlock()
+	// Clear request-time state before dropping the last manager reference. This
+	// prevents a retained auth clone (scheduler/session callbacks) from carrying
+	// quota, rate-limit, or overdraft state into a later re-import.
+	if existing != nil {
+		existing.resetQuotaRuntimeState()
+	}
+	for _, selection := range selections {
+		selection.End("auth_removed")
+	}
+	m.requestPrepareLocks.Delete(id)
+	m.refreshLocks.Delete(id)
+	m.mu.Lock()
+	for key := range m.codexOverdraftRunning {
+		if strings.HasPrefix(key, id+"\x00") {
+			delete(m.codexOverdraftRunning, key)
+		}
+	}
+	m.mu.Unlock()
+	m.refreshCodexTailBurstCandidates()
+
+	if !shouldDeferAPIKeyModelAliasRebuild(ctx) {
+		m.rebuildAPIKeyModelAliasFromRuntimeConfig()
+	}
+	if m.scheduler != nil {
+		m.scheduler.removeAuth(id)
+	}
+	m.queueRefreshUnschedule(id)
+	m.invalidateSessionAffinity(id)
+
+	if provider != "" {
+		if exec, ok := m.Executor(provider); ok && exec != nil {
+			if closer, okCloser := exec.(AuthExecutionSessionCloser); okCloser {
+				closer.CloseExecutionSessionsForAuthID(id, "auth_removed")
+			} else if closer, okCloser := exec.(ExecutionSessionCloser); okCloser {
+				// Preserve the legacy cleanup behavior for providers that have not
+				// adopted per-auth session ownership yet.
+				closer.CloseExecutionSession(CloseAllExecutionSessionsID)
+			}
+		}
+	}
+	m.persistCooldownStates(ctx)
+}
+
+func (m *Manager) invalidateSessionAffinity(authID string) {
+	if m == nil || authID == "" {
+		return
+	}
+	if invalidator, ok := m.selector.(interface{ InvalidateAuth(string) }); ok && invalidator != nil {
+		invalidator.InvalidateAuth(authID)
+	}
+}
+
+// Load resets manager state from the backing store.
+func (m *Manager) Load(ctx context.Context) error {
+	m.mu.Lock()
+	if m.store == nil {
+		m.mu.Unlock()
+		return nil
+	}
+	items, err := m.store.List(ctx)
+	if err != nil {
+		m.mu.Unlock()
+		return err
+	}
+	m.auths = make(map[string]*Auth, len(items))
+	for _, auth := range items {
+		if auth == nil || auth.ID == "" {
+			continue
+		}
+		if errWeight := ValidateAuthWeight(auth); errWeight != nil {
+			continue
+		}
+		auth.syncGroupIDsFromMetadata()
+		ApplyInitializationStateFromMetadata(auth)
+		auth.EnsureIndex()
+		m.auths[auth.ID] = auth.Clone()
+	}
+	cfg, _ := m.runtimeConfig.Load().(*internalconfig.Config)
+	if cfg == nil {
+		cfg = &internalconfig.Config{}
+	}
+	m.rebuildAPIKeyModelAliasLocked(cfg)
+	m.mu.Unlock()
+	m.syncScheduler()
+	m.refreshCodexTailBurstCandidates()
+	for _, auth := range items {
+		if auth != nil {
+			m.queueLifecycleRecovery(auth.ID)
+		}
+	}
+	return nil
+}
+
+func (m *Manager) persist(ctx context.Context, auth *Auth) error {
+	if m.store == nil || auth == nil {
+		return nil
+	}
+	if errWeight := ValidateAuthWeight(auth); errWeight != nil {
+		return fmt.Errorf("persist auth: %w", errWeight)
+	}
+	if shouldSkipPersist(ctx) {
+		return nil
+	}
+	if IsConfigAPIKeyAuth(auth) {
+		return nil
+	}
+	if auth.Attributes != nil {
+		if v := strings.ToLower(strings.TrimSpace(auth.Attributes["runtime_only"])); v == "true" {
+			return nil
+		}
+	}
+	if IsPluginVirtualAuth(auth) {
+		return nil
+	}
+	// Skip persistence when metadata is absent (e.g., runtime-only auths).
+	if auth.Metadata == nil {
+		return nil
+	}
+	// Stores may normalize persistence-only metadata (for example the disabled
+	// flag and backend path attributes). Never let those writes reach an auth
+	// object owned by Manager or the scheduler.
+	_, err := m.store.Save(ctx, auth.Clone())
+	return err
+}

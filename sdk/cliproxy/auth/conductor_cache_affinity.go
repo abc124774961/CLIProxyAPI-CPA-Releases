@@ -1,0 +1,85 @@
+package auth
+
+import (
+	"strings"
+
+	internalconfig "github.com/router-for-me/CLIProxyAPI/v7/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/cacheaffinity"
+	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
+)
+
+func (m *Manager) enrichCacheAffinity(providers []string, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (cliproxyexecutor.Request, cliproxyexecutor.Options) {
+	if m == nil || !hasCodexProvider(providers) {
+		return req, opts
+	}
+	cfg, _ := m.runtimeConfig.Load().(*internalconfig.Config)
+	req, opts, _ = cacheaffinity.Enrich(req, opts, cfg)
+	return req, opts
+}
+
+func (m *Manager) effectiveMaxRetryCredentials(configured int, providers []string) int {
+	if m == nil || !hasCodexProvider(providers) {
+		return configured
+	}
+	cfg, _ := m.runtimeConfig.Load().(*internalconfig.Config)
+	settings := cacheaffinity.Settings(cfg)
+	if !settings.Enabled || settings.Shadow || settings.MaxRetryCredentials <= 0 {
+		return configured
+	}
+	if configured <= 0 || configured > settings.MaxRetryCredentials {
+		return settings.MaxRetryCredentials
+	}
+	return configured
+}
+
+func (m *Manager) cacheAffinityActive(providers []string) bool {
+	if m == nil || !hasCodexProvider(providers) {
+		return false
+	}
+	cfg, _ := m.runtimeConfig.Load().(*internalconfig.Config)
+	settings := cacheaffinity.Settings(cfg)
+	return settings.Enabled && !settings.Shadow
+}
+
+func (m *Manager) confirmCacheAffinityBinding(provider, model, authID string, metadata map[string]any) {
+	routeKey := cacheaffinity.MetadataValue(metadata, cliproxyexecutor.CacheAffinityRouteKeyMetadataKey)
+	if routeKey == "" || strings.TrimSpace(authID) == "" {
+		return
+	}
+	selector := m.Selector()
+	binder, ok := selector.(sessionAffinityBinder)
+	if !ok || binder == nil {
+		return
+	}
+	binder.BindAuthSession(provider, model, "cache-affinity:"+routeKey, authID)
+	if recorder, okRecorder := selector.(cacheAffinitySuccessRecorder); okRecorder && recorder != nil {
+		recorder.RecordCacheAffinitySuccess(authID, metadata)
+	}
+}
+
+type cacheAffinityRuntimeSettings struct {
+	active         bool
+	hardStopRatio  float64
+	maxConcurrency int
+}
+
+func (m *Manager) cacheAffinitySettings() cacheAffinityRuntimeSettings {
+	if m == nil {
+		return cacheAffinityRuntimeSettings{}
+	}
+	cfg, _ := m.runtimeConfig.Load().(*internalconfig.Config)
+	settings := cacheaffinity.Settings(cfg)
+	return cacheAffinityRuntimeSettings{
+		active:         settings.Enabled && !settings.Shadow,
+		hardStopRatio:  settings.QuotaHardStopUsedRatio,
+		maxConcurrency: settings.MaxConcurrency,
+	}
+}
+
+func cacheAffinityUsageLimitResult(result Result) bool {
+	if result.Error == nil || result.Error.HTTPStatus != 429 {
+		return false
+	}
+	value := strings.ToLower(result.Error.Code + " " + result.Error.Message)
+	return strings.Contains(value, "usage_limit_reached") || strings.Contains(value, "usage limit")
+}
