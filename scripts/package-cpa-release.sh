@@ -140,8 +140,14 @@ for platform in "${platforms[@]}"; do
     "CPA image platform mismatch for $platform: got $image_os/$image_arch"
   canonical_repo="${cpa_image%:*}"
   expected_platform_repo_digest="${canonical_repo}@${platform_digest}"
-  repo_digests_json="$(docker image inspect --platform "$platform" --format '{{json .RepoDigests}}' "$image_ref")"
-  python3 - "$repo_digests_json" "$expected_platform_repo_digest" "$platform" <<'PY'
+  repo_digests_json="$(docker image inspect --platform "$platform" --format '{{json .RepoDigests}}' "$image_ref" 2>/dev/null || true)"
+  # Some Docker Engine/image-store combinations leave RepoDigests empty for
+  # digest-qualified pulls. The pull reference is already content-addressed;
+  # when RepoDigests is available, use it as an additional assertion, while
+  # the pinned-reference and canonical-tag image-ID checks below remain the
+  # portable integrity check.
+  if [[ -n "$repo_digests_json" && "$repo_digests_json" != "null" ]]; then
+    python3 - "$repo_digests_json" "$expected_platform_repo_digest" "$platform" <<'PY'
 import json
 import sys
 
@@ -155,6 +161,9 @@ if expected_platform not in (digests or []):
         f"CPA image digest mismatch for {platform}: expected {expected_platform!r}, got {digests!r}"
     )
 PY
+  else
+    info "Docker did not expose RepoDigests for the pinned CPA reference on $platform; continuing with digest-pinned pull and image-ID checks"
+  fi
   canonical_image_id="$(docker image inspect --platform "$platform" --format '{{.Id}}' "$cpa_image")"
   [[ "$canonical_image_id" == "$image_id" ]] || die \
     "CPA canonical tag resolved to a different image for $platform: $canonical_image_id"

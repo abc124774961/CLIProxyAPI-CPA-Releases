@@ -194,9 +194,15 @@ for platform in "${platforms[@]}"; do
   # of relying on that implementation detail.
   repo_digests_json="$(docker image inspect --platform "$platform" \
     --format '{{json .RepoDigests}}' "$image_ref" 2>/dev/null || true)"
-  [[ -n "$repo_digests_json" && "$repo_digests_json" != "null" ]] || die \
-    "could not resolve digest-pinned CPAMP image for $platform"
-  python3 - "$repo_digests_json" "$cpamp_image" "$platform_digest" <<'PY'
+  # Docker Engine does not consistently populate RepoDigests for an image
+  # pulled via a digest-qualified reference (notably on hosted Ubuntu
+  # runners). The reference itself is still content-addressed, so an empty
+  # RepoDigests value is not a reason to reject an otherwise valid pull. When
+  # the engine does expose RepoDigests, verify the expected platform digest;
+  # the pinned-reference pull plus the canonical-tag ID comparison below
+  # remains the portable integrity check.
+  if [[ -n "$repo_digests_json" && "$repo_digests_json" != "null" ]]; then
+    python3 - "$repo_digests_json" "$cpamp_image" "$platform_digest" <<'PY'
 import json
 import sys
 
@@ -211,6 +217,9 @@ if expected not in (digests or []) and not any(
         f"CPAMP image platform digest mismatch: expected {expected}, got {digests!r}"
     )
 PY
+  else
+    info "Docker did not expose RepoDigests for the pinned CPAMP reference on $platform; continuing with digest-pinned pull and image-ID checks"
+  fi
 image_arch="$(docker image inspect --platform "$platform" --format '{{.Architecture}}' "$image_ref")"
 image_os="$(docker image inspect --platform "$platform" --format '{{.Os}}' "$image_ref")"
 [[ "$image_os" == "linux" && "$image_arch" == "$arch" ]] || die \
