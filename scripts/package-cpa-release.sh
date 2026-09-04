@@ -53,10 +53,15 @@ docker info >/dev/null 2>&1 || die "Docker daemon is not available"
 # --platform` varies across customer hosts and GitHub runner images. A
 # platform-specific digest reference already selects the requested image, so
 # older CLIs can safely use the plain inspect/save forms as fallbacks.
+if docker image inspect --help 2>&1 | grep -q -- '--platform'; then
+  docker_inspect_platform_supported=1
+else
+  docker_inspect_platform_supported=0
+fi
 docker_image_inspect() {
   local platform="$1"
   shift
-  if docker image inspect --help 2>&1 | grep -q -- '--platform'; then
+  if [[ "$docker_inspect_platform_supported" == 1 ]]; then
     docker image inspect --platform "$platform" "$@"
   else
     docker image inspect "$@"
@@ -194,13 +199,17 @@ PY
   else
     info "Docker did not expose RepoDigests for the pinned CPA reference on $platform; continuing with digest-pinned pull and image-ID checks"
   fi
-  canonical_image_id="$(docker_image_inspect "$platform" --format '{{.Id}}' "$cpa_image")"
-  [[ "$canonical_image_id" == "$image_id" ]] || die \
-    "CPA canonical tag resolved to a different image for $platform: $canonical_image_id"
-  canonical_image_os="$(docker_image_inspect "$platform" --format '{{.Os}}' "$cpa_image")"
-  canonical_image_arch="$(docker_image_inspect "$platform" --format '{{.Architecture}}' "$cpa_image")"
-  [[ "$canonical_image_os/$canonical_image_arch" == "$platform" ]] || die \
-    "CPA canonical tag platform mismatch for $platform: got $canonical_image_os/$canonical_image_arch"
+  if [[ "$docker_inspect_platform_supported" == 1 ]]; then
+    canonical_image_id="$(docker_image_inspect "$platform" --format '{{.Id}}' "$cpa_image")"
+    [[ "$canonical_image_id" == "$image_id" ]] || die \
+      "CPA canonical tag resolved to a different image for $platform: $canonical_image_id"
+    canonical_image_os="$(docker_image_inspect "$platform" --format '{{.Os}}' "$cpa_image")"
+    canonical_image_arch="$(docker_image_inspect "$platform" --format '{{.Architecture}}' "$cpa_image")"
+    [[ "$canonical_image_os/$canonical_image_arch" == "$platform" ]] || die \
+      "CPA canonical tag platform mismatch for $platform: got $canonical_image_os/$canonical_image_arch"
+  else
+    info "Docker CLI cannot inspect a tag with --platform; using the digest-pinned CPA image for $platform"
+  fi
 
   # The source is a single-platform digest reference, so no create-time
   # --platform flag is needed (and older Docker CLIs do not support it).

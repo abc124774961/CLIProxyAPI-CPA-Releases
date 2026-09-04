@@ -53,10 +53,15 @@ docker info >/dev/null 2>&1 || die "Docker daemon is not available"
 # --platform` varies across customer hosts and GitHub runner images. A
 # platform-specific digest reference already selects the requested image, so
 # older CLIs can safely use the plain inspect/save forms as fallbacks.
+if docker image inspect --help 2>&1 | grep -q -- '--platform'; then
+  docker_inspect_platform_supported=1
+else
+  docker_inspect_platform_supported=0
+fi
 docker_image_inspect() {
   local platform="$1"
   shift
-  if docker image inspect --help 2>&1 | grep -q -- '--platform'; then
+  if [[ "$docker_inspect_platform_supported" == 1 ]]; then
     docker image inspect --platform "$platform" "$@"
   else
     docker image inspect "$@"
@@ -261,10 +266,15 @@ image_os="$(docker_image_inspect "$platform" --format '{{.Os}}' "$image_ref")"
 # manifest digest, because Docker engines represent those values differently.
 pinned_image_id="$(docker_image_inspect "$platform" \
   --format '{{.Id}}' "$image_ref")"
-canonical_image_id="$(docker_image_inspect "$platform" \
-  --format '{{.Id}}' "$cpamp_image")"
-[[ -n "$pinned_image_id" && "$pinned_image_id" == "$canonical_image_id" ]] || die \
-  "CPAMP canonical tag does not resolve to the pinned $platform image"
+[[ -n "$pinned_image_id" ]] || die "could not resolve CPAMP image ID for $platform"
+if [[ "$docker_inspect_platform_supported" == 1 ]]; then
+  canonical_image_id="$(docker_image_inspect "$platform" \
+    --format '{{.Id}}' "$cpamp_image")"
+  [[ "$pinned_image_id" == "$canonical_image_id" ]] || die \
+    "CPAMP canonical tag does not resolve to the pinned $platform image"
+else
+  info "Docker CLI cannot inspect a tag with --platform; using the digest-pinned CPAMP image for $platform"
+fi
 
   # The source is a single-platform digest reference, so no create-time
   # --platform flag is needed (and older Docker CLIs do not support it).
