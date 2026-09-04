@@ -11,10 +11,10 @@
 - [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)
 - [CPA-Manager-Pro](https://github.com/abc124774961/CPA-Manager-Pro)
 
-当前组合发布 tag 为 `v7.2.148-cpa.4`；CPA CLI 组件仍是 `v7.2.148-cpa.3`，CPAMP 组件仍是 `v1.12.8-cpa.1`。发布前请运行：
+当前组合发布 tag 为 `v7.2.148-cpa.5`；CPA CLI 组件仍是 `v7.2.148-cpa.4`，CPAMP 组件仍是 `v1.12.8-cpa.2`。发布前请运行：
 
 ```bash
-scripts/verify-release-bundle.sh v7.2.148-cpa.4
+scripts/verify-release-bundle.sh v7.2.148-cpa.5
 ```
 
 公开仓库不提交客户 `.env`、Secret、授权租约、私钥或客户专用插件包。

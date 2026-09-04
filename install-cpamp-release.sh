@@ -9,7 +9,7 @@ set -Eeuo pipefail
 export LC_ALL=C
 
 release_repo="${CPAMP_RELEASE_REPO:-abc124774961/CLIProxyAPI-CPA-Releases}"
-release_version="${CPAMP_RELEASE_VERSION:-v7.2.148-cpa.4}"
+release_version="${CPAMP_RELEASE_VERSION:-v7.2.148-cpa.5}"
 install_dir="${CPAMP_INSTALL_DIR:-}"
 allow_existing="${CPAMP_ALLOW_EXISTING:-0}"
 load_image="${CPAMP_LOAD_IMAGE:-0}"
@@ -32,7 +32,7 @@ usage() {
   install-cpamp-release.sh [选项]
 
 选项：
-  --version TAG       公开发布仓库的 CPA 发布 tag（默认 v7.2.148-cpa.4）
+  --version TAG       公开发布仓库的 CPA 发布 tag（默认 v7.2.148-cpa.5）
   --dir PATH          安装目录（默认 /opt/cpamp 或 $HOME/cpamp）
   --allow-existing    允许写入已有安装目录
   --load-image        同时加载包内的 CPAMP Docker 镜像归档

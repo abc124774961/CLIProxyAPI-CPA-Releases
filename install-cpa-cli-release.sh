@@ -8,7 +8,7 @@ set -Eeuo pipefail
 export LC_ALL=C
 
 release_repo="${CPA_CLI_RELEASE_REPO:-${CPA_RELEASE_REPO:-abc124774961/CLIProxyAPI-CPA-Releases}}"
-release_tag="${CPA_CLI_RELEASE_TAG:-${CPA_RELEASE_VERSION:-v7.2.148-cpa.4}}"
+release_tag="${CPA_CLI_RELEASE_TAG:-${CPA_RELEASE_VERSION:-v7.2.148-cpa.5}}"
 install_dir="${CPA_CLI_INSTALL_DIR:-${CPA_INSTALL_DIR:-}}"
 allow_existing="${CPA_CLI_ALLOW_EXISTING:-0}"
 load_image="${CPA_CLI_LOAD_IMAGE:-0}"
@@ -33,7 +33,7 @@ usage() {
   install-cpa-cli-release.sh [选项]
 
 选项：
-  --version TAG       公开组合发布 tag（默认 v7.2.148-cpa.4）
+  --version TAG       公开组合发布 tag（默认 v7.2.148-cpa.5）
   --dir PATH          安装目录（默认 /opt/cpa-cli 或 $HOME/cpa-cli）
   --allow-existing    允许更新已有安装目录，保留本地配置和授权状态
   --load-image        加载包内的 CPA Docker 镜像归档

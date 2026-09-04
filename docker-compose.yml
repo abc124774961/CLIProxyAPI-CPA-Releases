@@ -1,7 +1,7 @@
 services:
   cli-proxy-api:
-    # Bundle release v7.2.148-cpa.4 uses the verified CPA component image tag below.
-    image: ${CLI_PROXY_IMAGE:-ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.3}
+    # Bundle release v7.2.148-cpa.5 uses the verified CPA component image tag below.
+    image: ${CLI_PROXY_IMAGE:-ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.4}
     # A customer checkout must run the code in this directory by default.
     # Set CLI_PROXY_PULL_POLICY=always when intentionally using a published
     # image instead of building the checked-out source.
