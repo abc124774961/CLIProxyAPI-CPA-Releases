@@ -5,7 +5,7 @@
 set -Eeuo pipefail
 
 release_repo="${CPA_RELEASE_REPO:-abc124774961/CLIProxyAPI-CPA-Releases}"
-release_version="${CPA_RELEASE_VERSION:-v7.2.148-cpa.3}"
+release_version="${CPA_RELEASE_VERSION:-v7.2.148-cpa.4}"
 install_dir="${CPA_INSTALL_DIR:-${HOME:-/opt}/cpa-pro}"
 expected_commit="${CPA_RELEASE_COMMIT:-}"
 allow_existing="${CPA_ALLOW_EXISTING:-0}"
@@ -171,7 +171,7 @@ case "$release_repo" in
   *) die "CPA_RELEASE_REPO must be OWNER/REPOSITORY" ;;
 esac
 if [[ ! "$release_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+$ ]]; then
-  die "CPA_RELEASE_VERSION must be a pinned tag such as v7.2.148-cpa.3"
+  die "CPA_RELEASE_VERSION must be a pinned tag such as v7.2.148-cpa.4"
 fi
 
 command -v git >/dev/null 2>&1 || die "git is required"

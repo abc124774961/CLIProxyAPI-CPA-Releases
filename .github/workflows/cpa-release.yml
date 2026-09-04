@@ -32,8 +32,12 @@ jobs:
         run: go build -buildvcs=false ./cmd/server
       - name: Validate customer install scripts
         run: |
-          bash -n install-cpa-release.sh scripts/check-license-deployment.sh scripts/check-license-runtime.sh scripts/verify-release-bundle.sh
+          bash -n install-cpa-release.sh install-cpa-cli-release.sh install-cpamp-release.sh scripts/package-cpa-release.sh scripts/package-cpamp-release.sh scripts/check-license-deployment.sh scripts/check-license-runtime.sh scripts/verify-release-bundle.sh
           test -x install-cpa-release.sh
+          test -x install-cpa-cli-release.sh
+          test -x install-cpamp-release.sh
+          test -x scripts/package-cpa-release.sh
+          test -x scripts/package-cpamp-release.sh
           test -x scripts/check-license-deployment.sh
           test -x scripts/check-license-runtime.sh
           test -x scripts/verify-release-bundle.sh
@@ -66,20 +70,61 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+      - name: Login to GHCR for CPAMP packaging
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Create release archive, metadata, and checksums
         run: |
           set -euo pipefail
           version="$GITHUB_REF_NAME"
           mkdir -p dist
+          rm -f dist/checksums.txt
           archive="dist/CLIProxyAPI-CPA-${version}.tar.gz"
           git archive --format=tar.gz --prefix="CLIProxyAPI-CPA-${version}/" "$version" > "$archive"
           cp release-manifest.json "dist/CLIProxyAPI-CPA-${version}.manifest.json"
           cp release-catalog.json "dist/CLIProxyAPI-CPA-${version}.catalog.json"
-          cp RELEASES.md "dist/CLIProxyAPI-CPA-${version}.RELEASES.md"
           cp RELEASES_CN.md "dist/CLIProxyAPI-CPA-${version}.RELEASES_CN.md"
-          cp docs/deployment-cpa-cpamp.md "dist/CLIProxyAPI-CPA-${version}.deployment.md"
           cp docs/deployment-cpa-cpamp.zh-CN.md "dist/CLIProxyAPI-CPA-${version}.deployment.zh-CN.md"
-          (cd dist && sha256sum CLIProxyAPI-CPA-* > checksums.txt)
+          cp management.html dist/management.html
+      - name: Package CPAMP customer bundles
+        run: |
+          set -euo pipefail
+          cpamp_output="$RUNNER_TEMP/cpamp-release"
+          rm -rf "$cpamp_output"
+          CPAMP_OUTPUT_DIR="$cpamp_output" scripts/package-cpamp-release.sh
+          # The CPAMP packager emits a platform bundle and one manifest. The
+          # release-level checksums file below covers these alongside the CPA
+          # CLI assets; do not publish a second, ambiguous checksums file.
+          cp "$cpamp_output"/CPAMP-*.tar.gz "$cpamp_output"/CPAMP-*.manifest.json dist/
+          test -s dist/CPAMP-*-linux-amd64.tar.gz
+          test -s dist/CPAMP-*-linux-arm64.tar.gz
+          test -s dist/CPAMP-*.manifest.json
+      - name: Package CPA CLI customer bundles
+        run: |
+          set -euo pipefail
+          cpa_output="$RUNNER_TEMP/cpa-cli-release"
+          rm -rf "$cpa_output"
+          CPA_OUTPUT_DIR="$cpa_output" scripts/package-cpa-release.sh
+          # Keep one release-level checksums.txt for all CPA, CPAMP, panel, and
+          # metadata assets. The component-local checksums file is not copied.
+          cp "$cpa_output"/CPA-CLI-*.tar.gz "$cpa_output"/CPA-CLI-*.manifest.json dist/
+          test -s dist/CPA-CLI-*-linux-amd64.tar.gz
+          test -s dist/CPA-CLI-*-linux-arm64.tar.gz
+          test -s dist/CPA-CLI-*.manifest.json
+      - name: Create aggregate checksums
+        run: |
+          (
+            cd dist
+            rm -f checksums.txt
+            sha256sum -- * > checksums.txt
+          )
+      - name: Verify packaged release assets
+        env:
+          CPA_RELEASE_ARTIFACT_DIR: dist
+        run: scripts/verify-release-bundle.sh "$GITHUB_REF_NAME"
       - name: Upload release assets
         uses: actions/upload-artifact@v4
         with:
@@ -111,22 +156,81 @@ jobs:
       - name: Read reproducible build timestamp
         id: release-meta
         run: echo "build_date=$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
-      - name: Build and publish pinned multi-arch image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          build-args: |
-            VERSION=${{ github.ref_name }}
-            COMMIT=${{ github.sha }}
-            BUILD_DATE=${{ steps.release-meta.outputs.build_date }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ github.ref_name }}
-          tags: |
-            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+      - name: Verify or publish pinned multi-arch image
+        run: |
+          set -euo pipefail
+          image_meta=()
+          while IFS= read -r line; do image_meta+=("$line"); done < <(GITHUB_SHA="$GITHUB_SHA" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          c = json.loads(Path("release-manifest.json").read_text(encoding="utf-8"))["components"]["cpa_cli"]
+          print(c["image"])
+          print(c["image_digest"])
+          print(c.get("version", "dev"))
+          print(c.get("source_commit") or os.environ["GITHUB_SHA"])
+          print("true" if c.get("image_prebuilt", False) else "false")
+          print((c.get("platform_digests") or {}).get("linux/amd64", ""))
+          print((c.get("platform_digests") or {}).get("linux/arm64", ""))
+          PY
+          )
+          image="${image_meta[0]}"
+          expected_digest="${image_meta[1]}"
+          component_version="${image_meta[2]}"
+          source_commit="${image_meta[3]}"
+          image_prebuilt="${image_meta[4]}"
+          expected_amd64_digest="${image_meta[5]}"
+          expected_arm64_digest="${image_meta[6]}"
+          if [[ "$image_prebuilt" == "true" ]]; then
+            echo "Using prebuilt pinned image $image"
+            docker buildx imagetools inspect "$image" >/dev/null
+          else
+            echo "Building and publishing $image"
+            docker buildx build \
+              --platform linux/amd64,linux/arm64 \
+              --push \
+              --build-arg "VERSION=$component_version" \
+              --build-arg "COMMIT=$source_commit" \
+              --build-arg "BUILD_DATE=${{ steps.release-meta.outputs.build_date }}" \
+              --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+              --label "org.opencontainers.image.revision=$source_commit" \
+              --label "org.opencontainers.image.version=$component_version" \
+              --tag "$image" .
+          fi
+          image_manifest_file="$RUNNER_TEMP/cpa-image-manifest.json"
+          docker buildx imagetools inspect --format '{{json .Manifest}}' "$image" > "$image_manifest_file"
+          python3 - "$image_manifest_file" "$expected_digest" "$image" "$expected_amd64_digest" "$expected_arm64_digest" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          manifest_path, expected_digest, image, expected_amd64, expected_arm64 = sys.argv[1:]
+          data = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+          actual_digest = data.get("digest")
+          if actual_digest != expected_digest:
+              raise SystemExit(
+                  f"CPA image index digest mismatch for {image}: "
+                  f"manifest={expected_digest}, actual={actual_digest}"
+              )
+          expected_platform_digests = {
+              "linux/amd64": expected_amd64,
+              "linux/arm64": expected_arm64,
+          }
+          if not all(expected_platform_digests.values()):
+              raise SystemExit("release manifest does not record both CPA platform digests")
+          actual_platform_digests = {}
+          for entry in data.get("manifests", []):
+              platform = entry.get("platform") or {}
+              key = f"{platform.get('os')}/{platform.get('architecture')}"
+              if key in ("linux/amd64", "linux/arm64"):
+                  actual_platform_digests[key] = entry.get("digest")
+          for platform, expected in expected_platform_digests.items():
+              if actual_platform_digests.get(platform) != expected:
+                  raise SystemExit(
+                      f"CPA image platform digest mismatch for {platform}: "
+                      f"manifest={expected}, actual={actual_platform_digests.get(platform)}"
+                  )
+          PY
       - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

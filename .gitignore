@@ -9,6 +9,7 @@ config.yaml
 
 # Generated content
 bin/*
+dist/
 /logs
 conv/*
 temp/*
@@ -38,7 +39,6 @@ auths/*
 
 # Documentation
 docs/*
-!docs/deployment-cpa-cpamp.md
 !docs/deployment-cpa-cpamp.zh-CN.md
 AGENTS.md
 CLAUDE.md

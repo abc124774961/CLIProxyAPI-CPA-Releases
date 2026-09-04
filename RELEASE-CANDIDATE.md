@@ -1,44 +1,20 @@
-# CPA-Pro release process
+# CPA 发布说明
 
-Customer deployments use the public release repository
-[`abc124774961/CLIProxyAPI-CPA-Releases`](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases)
-and a tag matching `vMAJOR.MINOR.PATCH-cpa.N`. The matching CPAMP pool bundle is
-published separately as a pinned GHCR image. See [`RELEASES.md`](RELEASES.md),
-[`RELEASES_CN.md`](RELEASES_CN.md), and [`release-catalog.json`](release-catalog.json)
-for the current pair, source references, image digests, and deployment links.
-A customer host may clone the immutable CPA tag or pull the published image;
-the CPAMP stack uses the matching Manager + Agent image from the catalog.
+本页仅保留发布入口。发布版本、镜像 digest、平台信息和校验文件以
+[release-manifest.json](release-manifest.json)、[release-catalog.json](release-catalog.json) 和
+[GitHub Actions workflow](.github/workflows/cpa-release.yml) 为准。
 
-## Required release gates
+客户部署请阅读 [中文部署流程](docs/deployment-cpa-cpamp.zh-CN.md)，并使用本仓库的
+[CPAMP 发布模板](deploy/cpamp-pool-server/README.md)。普通用户不需要访问或 clone 私有的 CPAMP 源码仓库。
+功能源码和完整发布变更分别引用（仅供维护者参考）：
 
-1. `go test ./...` and `go build ./cmd/server` pass on the release commit.
-2. `docker compose --env-file .env.example config` renders with a test public
-   key and the license state volume/secret mount is present.
-3. `scripts/check-license-deployment.sh` passes before the first start. When
-   `--provider` is used, configure a documented non-mutating storefront
-   preflight URL and complete JSON body; only HTTP 2xx is accepted.
-4. The storefront exposes `POST /api/storefront/licenses/grace` and accepts
-   the configured client credentials for the real first-install flow. If the
-   optional `--provider` check is enabled, it uses a separate documented
-   non-mutating preflight URL and complete JSON body; a 400/401/403/404/405 or
-   5xx from that preflight is a release blocker. The live grace route must
-   never be probed with an empty request because it can create a persisted
-   lease.
-5. The release tag and commit are recorded in the release notes together with
-   SHA256 checksums for any published archives.
-6. `release-manifest.json`, `.env.example`, and `config.example.yaml` contain
-   the same release-pinned license and plugin public keys. Customer secrets are
-   never included.
-7. `license.grace-period` is only a bounded local network-failure fallback and
-   is capped at six hours in the release binary; storefront-signed
-   `grace_until`/`expiry_grace_until` values remain authoritative.
-8. The installer uses an atomic clone, a per-install lock, a free-space gate,
-   storefront preflight, runtime license verification, and previous-image
-   rollback for upgrades.
-9. The catalog records both `linux/amd64` and `linux/arm64` for CPA CLI and
-   CPAMP, and the CPAMP image is checked for both `cpa-manager-plus` and
-   `cpamp-agent` binaries.
+- [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)
+- [CPA-Manager-Pro](https://github.com/abc124774961/CPA-Manager-Pro)
 
-The public repository must not contain customer `.env`, private signing keys,
-license leases, `data/license`, or plugin artifacts that are encrypted for a
-specific customer.
+当前组合发布 tag 为 `v7.2.148-cpa.4`；CPA CLI 组件仍是 `v7.2.148-cpa.3`，CPAMP 组件仍是 `v1.12.8-cpa.1`。发布前请运行：
+
+```bash
+scripts/verify-release-bundle.sh v7.2.148-cpa.4
+```
+
+公开仓库不提交客户 `.env`、Secret、授权租约、私钥或客户专用插件包。

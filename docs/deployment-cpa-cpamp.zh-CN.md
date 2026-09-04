@@ -1,28 +1,34 @@
-# CPA CLI + CPAMP 统一部署
+# CPA CLI + CPAMP 中文部署流程
 
-本页只说明客户服务器的发布版部署入口。源码分别维护在
-[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 和
-[CPA-Manager-Pro](https://github.com/abc124774961/CPA-Manager-Pro)；本仓库登记经过验证的
-CPA CLI/CPAMP 版本、镜像、digest 和部署说明。可直接使用本仓库的
-[CPAMP pool-server 模板](../deploy/cpamp-pool-server/README.md)，完整参数和上游变更再参考
-[独立源码仓库](https://github.com/abc124774961/CPA-Manager-Pro/tree/main/deploy/pool-server)。
+本页只说明客户服务器的发布版安装、验证和升级。请使用固定版本 tag 或镜像 digest，不使用 `latest`。
+普通用户只需本公开仓库中的镜像、Compose 文件、脚本和配置模板，不需要访问或 clone 私有源码仓库。
+功能源码和完整参数说明（仅供维护者参考）直接引用：
+
+- [CLIProxyAPI 源码与完整文档](https://github.com/router-for-me/CLIProxyAPI)
+- [CPA-Manager-Pro 源码与完整 pool-server 模板](https://github.com/abc124774961/CPA-Manager-Pro/tree/main/deploy/pool-server)
 
 ## 当前发布组合
 
-| 组件 | 版本/tag | 固定镜像 | 支持架构 |
+统一公开发布 tag：`v7.2.148-cpa.4`。这是客户获取两项组件、部署模板和安装包的组合锚点；组件版本和镜像 tag 仍按已验证记录保持不变。 清单中的顶层 `version`/`release_tag` 表示组合发布，组件对象中的 `version`/`tag`/镜像 tag 表示实际运行产物。
+
+| 组件 | 组件版本 / 镜像 tag | 镜像 | 组合发布 tag |
 | --- | --- | --- | --- |
-| CPA CLI | `v7.2.148-cpa.3` | `ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.3` | `linux/amd64`、`linux/arm64` |
-| CPAMP（Manager + Agent） | `v1.12.8-cpa.1` / `cpamp-pool-v1.12.8-cpa.1` | `ghcr.io/abc124774961/cpa-manager-plus:v1.12.8-cpa.1` | `linux/amd64`、`linux/arm64` |
+| CPA CLI | `v7.2.148-cpa.3` | `ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.3` | `v7.2.148-cpa.4` |
+| CPAMP（Manager + Agent） | `v1.12.8-cpa.1` | `ghcr.io/abc124774961/cpa-manager-plus:v1.12.8-cpa.1` | `v7.2.148-cpa.4` |
 
-镜像 manifest digest、源码提交和历史版本见 [`release-catalog.json`](../release-catalog.json)。生产环境固定
-tag；需要更严格的供应链锁定时，使用 catalog 中的 `sha256` digest，不使用 `latest`。
+两项均支持 `linux/amd64` 与 `linux/arm64`。平台 digest、校验和及源码提交见
+[release-catalog.json](../release-catalog.json) 和 [release-manifest.json](../release-manifest.json)。
 
-## 快速部署
+## 1. 准备服务器
 
-### 1. 准备 CPA CLI
+安装 Docker Engine、Compose v2、`curl`、`tar` 和 Python 3，确认主机时间、DNS、CA 证书正常，并能通过 HTTPS 访问
+`https://p.666ttt.net`。为配置、账号、日志、插件、Manager 数据和授权状态准备持久化目录。
+升级时必须保留 `data/license`（或 `CPA_LICENSE_STATE_DIR` 指定目录），不要执行 `down -v`。
+
+## 2. 部署 CPA CLI
 
 ```bash
-git clone --branch v7.2.148-cpa.3 --depth 1 \
+git clone --branch v7.2.148-cpa.4 --depth 1 \
   https://github.com/abc124774961/CLIProxyAPI-CPA-Releases.git /opt/cpa-release
 cd /opt/cpa-release
 cp config.example.yaml config.yaml
@@ -31,66 +37,96 @@ mkdir -p auths logs plugins data/license secrets
 chmod 700 data/license
 ```
 
-在 `.env` 中填写管理密码、商城签发的 `CPA_LICENSE_CLIENT_ID`，以及单行的
-`CPA_LICENSE_CLIENT_SECRET`（或 `CPA_LICENSE_CLIENT_SECRET_HOST_PATH`）。
-`CPA_LICENSE_API_BASE_URL` 使用 `https://p.666ttt.net/api/storefront`；`data/license` 必须在升级时保留。
+编辑 `.env`，至少填写管理密码、商城签发的客户端 ID/Secret，并确认以下地址和状态目录：
 
-先执行无密钥配置检查，再启动 CPA：
+```dotenv
+CPA_LICENSE_API_BASE_URL=https://p.666ttt.net/api/storefront
+CPA_LICENSE_CLIENT_ID=商城签发的客户端ID
+CPA_LICENSE_CLIENT_SECRET_HOST_PATH=./secrets/cpa-license-client-secret
+CLI_PROXY_LICENSE_PATH=./data/license
+```
+
+将 Secret 写入 `secrets/cpa-license-client-secret`，权限设为 `600`。不要把真实 `.env`、Secret 或授权状态提交到 Git。
+
+启动前检查并启动 CPA：
 
 ```bash
 scripts/check-license-deployment.sh --env-file .env --compose-file docker-compose.yml
 docker compose --env-file .env -f docker-compose.yml pull
 docker compose --env-file .env -f docker-compose.yml up -d cli-proxy-api
+curl -fsS http://127.0.0.1:${CLI_PROXY_HOST_PORT:-8317}/healthz
 ```
 
-也可以执行 `./install-cpa-release.sh`，脚本会校验固定 tag、磁盘空间、授权目录和运行时状态。
+需要使用预构建 CPA CLI 包时，可使用仓库中的 [`install-cpa-cli-release.sh`](../install-cpa-cli-release.sh)；该安装器默认使用组合发布 tag `v7.2.148-cpa.4`，按主机架构下载清单登记的 CPA CLI 二进制和镜像归档。若需要从公开仓库 checkout 后本地构建 CPA，再使用 [`install-cpa-release.sh`](../install-cpa-release.sh)。
 
-### 2. 准备 CPAMP pool-server
+## 3. 部署 CPAMP
 
-CPAMP 的 Manager 和 Agent 必须使用同一固定版本镜像。使用
-[本仓库模板](../deploy/cpamp-pool-server/)，或从当前 release 目录复制到独立目录；再复制 `.env.example`
-为 `.env`，并至少设置：
-
-```dotenv
-CPA_IMAGE=ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.3
-CPAMP_IMAGE=ghcr.io/abc124774961/cpa-manager-plus:v1.12.8-cpa.1
-CPA_LICENSE_PUBLIC_KEY=kJhDRBpfneFdURvPXwiGW3XAmPrd2HVVORfHzP-eYTg
-CPA_LICENSE_PLUGIN_PUBLIC_KEY=OHRHVVIlFC34K-5AQUkOPcZLeiSpeX_n_VPbrH3agXQ
-CPA_LICENSE_API_BASE_URL=https://p.666ttt.net/api/storefront
-CPA_LICENSE_CLIENT_ID=商城签发的客户端ID
-CPA_LICENSE_CLIENT_SECRET_HOST_PATH=./secrets/cpa-license-client-secret
-```
-
-把商城 Secret 写入 `secrets/cpa-license-client-secret`（权限 `600`），再按模板提供的
-`bootstrap.sh`/`preflight.sh` 启动。所有 Compose 操作都显式指定 env 文件：
+普通用户推荐直接使用公开 Release 安装器。安装器只下载本仓库的 CPAMP 包，包内包含
+Manager、Agent、固定镜像归档、Compose 文件和全部部署脚本，不会访问 `CPA-Manager-Pro` 源码仓库：
 
 ```bash
+RELEASE_TAG=v7.2.148-cpa.4
+curl -fL \
+  "https://raw.githubusercontent.com/abc124774961/CLIProxyAPI-CPA-Releases/${RELEASE_TAG}/install-cpamp-release.sh" \
+  -o install-cpamp-release.sh
+chmod +x install-cpamp-release.sh
+sudo CPAMP_INSTALL_DIR=/opt/cpa-pool \
+  ./install-cpamp-release.sh --version "$RELEASE_TAG"
+cd /opt/cpa-pool/deploy/cpamp-pool-server
+cp .env.example .env
+```
+
+也可以从已经 checkout 的发布仓库复制模板（不要从私有仓库复制）：
+
+```bash
+mkdir -p /opt/cpa-pool
+cp -a /opt/cpa-release/deploy/cpamp-pool-server/. /opt/cpa-pool/
+cd /opt/cpa-pool
+cp .env.example .env
+```
+
+确认 `CPA_IMAGE` 和 `CPAMP_IMAGE` 与上表完全一致（CPA 镜像 tag 是 `v7.2.148-cpa.3`，CPAMP 镜像 tag 是 `v1.12.8-cpa.1`，不要把组合发布 tag 当成镜像 tag）。Manager 与 Agent 必须使用同一 CPAMP 镜像 tag。
+填好商城客户端 ID 和 Secret 后执行：
+
+```bash
+chmod +x bootstrap.sh preflight.sh
+mkdir -p -m 700 secrets
+install -m 600 /path/to/storefront-secret secrets/cpa-license-client-secret
 ./preflight.sh
 docker compose --env-file .env -f compose.yml pull
 docker compose --env-file .env -f compose.yml up -d
 docker compose --env-file .env -f compose.yml ps
 ```
 
-CPAMP 面板默认端口为 `18317`，Agent 默认端口为 `18417`；与已有实例并行验证时改用未占用端口。
+如果服务器不能访问 GHCR，可先加载安装包内的 CPAMP 镜像归档，再把 `.env` 中
+`CPAMP_PULL_POLICY` 改为 `never`；CPA CLI 镜像仍需在线拉取或由本地镜像仓库提供。
 
-## 验证和升级
+默认面板端口为 `18317`，Agent 端口为 `18417`；同机并行测试时改用未占用端口。面板地址：
+`http://<服务器地址>:18317/management.html`。
+
+## 4. 授权验证
+
+确认 CPA `/healthz`、CPAMP `/health` 返回成功，并检查 Manager/Agent 日志。使用运行时脚本检查授权状态：
 
 ```bash
-# CPA
-curl -fsS http://127.0.0.1:${CLI_PROXY_HOST_PORT:-8317}/healthz
-
-# CPAMP
-curl -fsS http://127.0.0.1:${CPAMP_PORT:-18317}/health
+scripts/check-license-runtime.sh \
+  --base-url http://127.0.0.1:${CLI_PROXY_HOST_PORT:-8317} \
+  --config-file ./config.yaml
 ```
 
-升级时只替换经过验证的 CPA/CPAMP tag，先 `pull` 再 `up -d`；不要执行 `down -v`，以免删除
-`data/license`、CPA 配置、Manager 数据和备份。出现启动或授权异常时，恢复上一组 tag/digest，保留原授权目录后
-重新检查。首次激活和到期后的宽限租约由商城签名控制，默认本地兜底上限为 6 小时，修改客户机配置不会把宽限期变成无限期。
+`allowed=true` 且 `reason=active` 表示正式授权；`reason=grace` 或 `reason=expiry_grace` 表示商城签发的宽限窗口。
+商城授权和宽限租约由服务端签名，客户端本地网络故障兜底上限为 6 小时；修改客户机配置不会延长租约。
+
+## 5. 升级与回滚
+
+1. 先备份 `data/license`、CPA 配置、`auths`、Manager 数据和 `secrets/`。
+2. 只修改到已验证的 CPA/CPAMP tag 或 digest，先 `pull` 再 `up -d`。
+3. 升级后重复健康检查和授权检查。
+4. 失败时恢复上一组 tag/digest；不要删除授权目录或执行 `down -v`。
 
 ## 参考入口
 
-- 版本目录：[`RELEASES_CN.md`](../RELEASES_CN.md) / [`release-catalog.json`](../release-catalog.json)
-- CPA CLI 详细安装：[`README_CN.md`](../README_CN.md)
-- CPAMP 发布模板：[`deploy/cpamp-pool-server`](../deploy/cpamp-pool-server/)
-- CPAMP 源码与详细说明：[CPA-Manager-Pro/deploy/pool-server](https://github.com/abc124774961/CPA-Manager-Pro/tree/main/deploy/pool-server)
-- 商城授权地址：[p.666ttt.net](https://p.666ttt.net/)
+- [版本目录](../RELEASES_CN.md)
+- [CPAMP 模板说明](../deploy/cpamp-pool-server/README.md)
+- [GitHub Releases](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases)
+- [商城授权入口](https://p.666ttt.net/)
