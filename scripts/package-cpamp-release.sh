@@ -49,6 +49,36 @@ docker info >/dev/null 2>&1 || die "Docker daemon is not available"
 [[ -f "$manifest_file" ]] || die "release manifest is missing: $manifest_file"
 [[ "$include_image" == "0" || "$include_image" == "1" ]] || die "CPAMP_INCLUDE_IMAGE_ARCHIVE must be 0 or 1"
 
+# Docker CLI support for `image inspect --platform` and `image save
+# --platform` varies across customer hosts and GitHub runner images. A
+# platform-specific digest reference already selects the requested image, so
+# older CLIs can safely use the plain inspect/save forms as fallbacks.
+docker_image_inspect() {
+  local platform="$1"
+  shift
+  if docker image inspect --help 2>&1 | grep -q -- '--platform'; then
+    docker image inspect --platform "$platform" "$@"
+  else
+    docker image inspect "$@"
+  fi
+}
+
+docker_image_save_platform() {
+  local platform="$1"
+  local image_ref="$2"
+  local image_id="$3"
+  local output="$4"
+  if docker image save --help 2>&1 | grep -q -- '--platform'; then
+    docker image save --platform "$platform" "$image_ref" -o "$output"
+  else
+    # Older Docker saves all variants reachable from a tag. Retag the exact
+    # digest-pinned image ID first so the archive contains one deterministic
+    # platform image and retains the canonical Compose tag.
+    docker tag "$image_id" "$image_ref"
+    docker image save "$image_ref" -o "$output"
+  fi
+}
+
 read_manifest_value() {
   local expression="$1"
   python3 - "$manifest_file" "$expression" <<'PY'
@@ -192,7 +222,7 @@ for platform in "${platforms[@]}"; do
   # may be a config digest (the exact representation differs by image store
   # and engine version). Validate the digest-pinned reference itself instead
   # of relying on that implementation detail.
-  repo_digests_json="$(docker image inspect --platform "$platform" \
+  repo_digests_json="$(docker_image_inspect "$platform" \
     --format '{{json .RepoDigests}}' "$image_ref" 2>/dev/null || true)"
   # Docker Engine does not consistently populate RepoDigests for an image
   # pulled via a digest-qualified reference (notably on hosted Ubuntu
@@ -220,8 +250,8 @@ PY
   else
     info "Docker did not expose RepoDigests for the pinned CPAMP reference on $platform; continuing with digest-pinned pull and image-ID checks"
   fi
-image_arch="$(docker image inspect --platform "$platform" --format '{{.Architecture}}' "$image_ref")"
-image_os="$(docker image inspect --platform "$platform" --format '{{.Os}}' "$image_ref")"
+image_arch="$(docker_image_inspect "$platform" --format '{{.Architecture}}' "$image_ref")"
+image_os="$(docker_image_inspect "$platform" --format '{{.Os}}' "$image_ref")"
 [[ "$image_os" == "linux" && "$image_arch" == "$arch" ]] || die \
   "CPAMP image platform mismatch for $platform: got $image_os/$image_arch"
 # The canonical tag is what Compose will resolve after an offline `docker
@@ -229,14 +259,16 @@ image_os="$(docker image inspect --platform "$platform" --format '{{.Os}}' "$ima
 # tag update between the two pulls cannot place an unrelated image in the
 # customer archive. The IDs are compared to each other, not to the registry
 # manifest digest, because Docker engines represent those values differently.
-pinned_image_id="$(docker image inspect --platform "$platform" \
+pinned_image_id="$(docker_image_inspect "$platform" \
   --format '{{.Id}}' "$image_ref")"
-canonical_image_id="$(docker image inspect --platform "$platform" \
+canonical_image_id="$(docker_image_inspect "$platform" \
   --format '{{.Id}}' "$cpamp_image")"
 [[ -n "$pinned_image_id" && "$pinned_image_id" == "$canonical_image_id" ]] || die \
   "CPAMP canonical tag does not resolve to the pinned $platform image"
 
-  container_id="$(docker create --platform "$platform" "$image_ref")"
+  # The source is a single-platform digest reference, so no create-time
+  # --platform flag is needed (and older Docker CLIs do not support it).
+  container_id="$(docker create "$image_ref")"
   cleanup_container() {
     if [[ -n "$container_id" ]]; then
       docker rm -f "$container_id" >/dev/null 2>&1 || true
@@ -353,8 +385,8 @@ PY
     # ID, which is not a taggable local image ID. Use the platform-aware save
     # operation so the archive keeps the exact canonical tag consumed by the
     # public Compose template while containing one requested architecture.
-    docker image save --platform "$platform" "$cpamp_image" \
-      -o "$package_dir/image/cpamp-image.tar"
+    docker_image_save_platform "$platform" "$cpamp_image" "$pinned_image_id" \
+      "$package_dir/image/cpamp-image.tar"
     verify_archive_tag "$package_dir/image/cpamp-image.tar" "$cpamp_image" "$arch"
   else
     rm -rf "$package_dir/image"
