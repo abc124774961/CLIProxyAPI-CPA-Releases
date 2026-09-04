@@ -34,14 +34,14 @@ CPA CLI/CPAMP 的固定镜像、Compose 文件、安装脚本和配置模板；�
 
 1. 在客户服务器准备 Docker Engine、Compose v2，并固定 CPA/CPAMP 版本。
 2. CPA CLI 从本仓库 checkout 固定 tag，复制 `config.example.yaml`、`.env.example`，创建 `data/license`、`auths`、`logs`、`plugins` 和 `secrets` 目录。
-3. 填写商城签发的 `CPA_LICENSE_CLIENT_ID` 与 Secret；Secret 建议放在权限 `600` 的本地文件中。
+3. 按商城发放结果填写 `CPA_LICENSE_CLIENT_ID`。公开发布默认不要求 `CPA_LICENSE_CLIENT_SECRET`；如需启用服务端 Secret 校验，再将 Secret 放在权限 `600` 的本地文件中，并与商城端同时开启强制校验。
 4. CPAMP 只使用本仓库的 `deploy/cpamp-pool-server` 模板和公开 GHCR 镜像，Manager 与 Agent 必须使用同一镜像 tag。
 5. 所有 Compose 操作显式使用 `--env-file .env`，启动后检查 CPA `/healthz`、CPAMP `/health` 和面板日志。
 6. 升级只替换已验证的 tag/digest，保留 `data/license`、CPA 配置、Manager 数据和备份；不要执行 `down -v`。
 
 也可直接运行仓库根目录的 `install-cpa-cli-release.sh` 安装预构建 CPA CLI 客户包，或运行 `install-cpamp-release.sh` 安装 CPAMP 客户包；两者均从统一公开 Release `v7.2.148-cpa.4` 下载，包内包含对应平台的可执行产物、镜像归档（如发布资产提供）、Compose/配置模板和部署脚本，普通用户无需访问 `CPA-Manager-Pro` 源码仓库。需要从 checkout 的源码树本地构建 CPA 时，再使用 `install-cpa-release.sh`。
 
-商城授权地址为 `https://p.666ttt.net/api/storefront`。正式授权和到期宽限租约由商城签名；本地网络故障兜底最多 6 小时，修改客户机配置不会延长商城租约。真实 Secret、授权租约和客户数据不得提交到 Git。
+商城授权地址为 `https://p.666ttt.net/api/storefront`。正式授权和到期宽限租约由商城签名；本地网络故障兜底最多 6 小时，修改客户机配置不会延长商城租约。公开版如果遗留了旧 Secret，服务端返回 `401 provider_rejected` 时客户端会自动重试一次并移除 `Authorization`，不需要手工改代码。若客户仍使用旧安装包，必须重新下载包含本修复的最新组合 Release；只刷新页面或只修改 `.env` 不会替换已运行的二进制。真实 Secret、授权租约和客户数据不得提交到 Git。
 
 ## 参考
 

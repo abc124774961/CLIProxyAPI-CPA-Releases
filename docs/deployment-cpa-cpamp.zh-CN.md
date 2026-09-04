@@ -42,6 +42,8 @@ chmod 700 data/license
 ```dotenv
 CPA_LICENSE_API_BASE_URL=https://p.666ttt.net/api/storefront
 CPA_LICENSE_CLIENT_ID=商城签发的客户端ID
+# 公开发布默认关闭服务端 Secret 强制校验；启用时必须与商城端配置一致
+CPA_LICENSE_REQUIRE_CLIENT_SECRET=false
 CPA_LICENSE_CLIENT_SECRET_HOST_PATH=./secrets/cpa-license-client-secret
 CLI_PROXY_LICENSE_PATH=./data/license
 ```
@@ -115,7 +117,7 @@ scripts/check-license-runtime.sh \
 ```
 
 `allowed=true` 且 `reason=active` 表示正式授权；`reason=grace` 或 `reason=expiry_grace` 表示商城签发的宽限窗口。
-商城授权和宽限租约由服务端签名，客户端本地网络故障兜底上限为 6 小时；修改客户机配置不会延长租约。
+商城授权和宽限租约由服务端签名，客户端本地网络故障兜底上限为 6 小时；修改客户机配置不会延长租约。公开版若带有历史 Secret，接口返回 `401 provider_rejected` 时会自动再请求一次且不发送 `Authorization`，因此不需要手工删除旧配置。客户必须运行包含该修复的最新组合 Release；旧安装包中的客户端不会因为更新 `.env` 或刷新面板而获得新逻辑。
 
 ## 5. 升级与回滚
 

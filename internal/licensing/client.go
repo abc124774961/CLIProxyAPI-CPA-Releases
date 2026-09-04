@@ -28,6 +28,12 @@ type Client struct {
 	httpClient   *http.Client
 }
 
+type providerResponse struct {
+	status   int
+	body     []byte
+	tooLarge bool
+}
+
 type activateRequest struct {
 	Code       string `json:"code"`
 	Product    string `json:"product"`
@@ -72,7 +78,7 @@ func newClient(cfg Config) *Client {
 		baseURL: strings.TrimRight(cfg.APIBaseURL, "/"), productCode: cfg.ProductCode,
 		activatePath: cfg.ActivatePath, refreshPath: cfg.RefreshPath, verifyPath: cfg.VerifyPath,
 		gracePath: cfg.GracePath,
-		clientID:  cfg.ClientID, secret: cfg.ClientSecret,
+		clientID:  strings.TrimSpace(cfg.ClientID), secret: strings.TrimSpace(cfg.ClientSecret),
 		httpClient: &http.Client{Timeout: 5 * time.Second},
 	}
 }
@@ -120,32 +126,28 @@ func (c *Client) post(ctx context.Context, path string, payload any) (SignedLeas
 	if err != nil {
 		return SignedLease{}, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, strings.NewReader(string(body)))
+	response, err := c.doPost(ctx, path, body, "application/json", 256<<10, c.secret != "")
 	if err != nil {
 		return SignedLease{}, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	if c.clientID != "" {
-		req.Header.Set("X-License-Client-ID", c.clientID)
+	if response.tooLarge {
+		return SignedLease{}, fmt.Errorf("license provider response is too large")
 	}
-	if c.secret != "" {
-		req.Header.Set("Authorization", "Bearer "+c.secret)
+	if response.status < 200 || response.status >= 300 {
+		if c.shouldRetryWithoutSecret(response.status, response.body) {
+			response, err = c.doPost(ctx, path, body, "application/json", 256<<10, false)
+			if err != nil {
+				return SignedLease{}, err
+			}
+			if response.tooLarge {
+				return SignedLease{}, fmt.Errorf("license provider response is too large")
+			}
+		}
+		if response.status < 200 || response.status >= 300 {
+			return SignedLease{}, providerError{code: providerErrorCode(response.status, response.body)}
+		}
 	}
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return SignedLease{}, err
-	}
-	defer resp.Body.Close()
-	limited := io.LimitReader(resp.Body, 256<<10)
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		b, _ := io.ReadAll(limited)
-		return SignedLease{}, providerError{code: providerErrorCode(resp.StatusCode, b)}
-	}
-	body, err = io.ReadAll(limited)
-	if err != nil {
-		return SignedLease{}, fmt.Errorf("read license provider response: %w", err)
-	}
+	body = response.body
 	var result SignedLease
 	if err := decodeJSON(body, &result); err == nil && strings.TrimSpace(result.Signature) != "" {
 		return result, nil
@@ -173,36 +175,61 @@ func (c *Client) postBytes(ctx context.Context, path string, body []byte) ([]byt
 	if c.baseURL == "" {
 		return nil, fmt.Errorf("license provider URL is empty")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, strings.NewReader(string(body)))
+	const maxPackage = 128 << 20
+	response, err := c.doPost(ctx, path, body, "application/octet-stream", maxPackage, c.secret != "")
 	if err != nil {
 		return nil, err
 	}
+	if response.tooLarge {
+		return nil, fmt.Errorf("plugin package is too large")
+	}
+	if response.status < 200 || response.status >= 300 {
+		if c.shouldRetryWithoutSecret(response.status, response.body) {
+			response, err = c.doPost(ctx, path, body, "application/octet-stream", maxPackage, false)
+			if err != nil {
+				return nil, err
+			}
+			if response.tooLarge {
+				return nil, fmt.Errorf("plugin package is too large")
+			}
+		}
+		if response.status < 200 || response.status >= 300 {
+			return nil, providerError{code: providerErrorCode(response.status, response.body)}
+		}
+	}
+	return response.body, nil
+}
+
+func (c *Client) shouldRetryWithoutSecret(status int, body []byte) bool {
+	return c != nil && strings.TrimSpace(c.secret) != "" && status == http.StatusUnauthorized && providerErrorCode(status, body) == "provider_rejected"
+}
+
+func (c *Client) doPost(ctx context.Context, path string, body []byte, accept string, maxBody int64, includeSecret bool) (providerResponse, error) {
+	if c == nil || c.httpClient == nil {
+		return providerResponse{}, errors.New("license provider client is not configured")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, strings.NewReader(string(body)))
+	if err != nil {
+		return providerResponse{}, err
+	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/octet-stream")
+	req.Header.Set("Accept", accept)
 	if c.clientID != "" {
 		req.Header.Set("X-License-Client-ID", c.clientID)
 	}
-	if c.secret != "" {
+	if includeSecret && c.secret != "" {
 		req.Header.Set("Authorization", "Bearer "+c.secret)
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return providerResponse{}, err
 	}
 	defer resp.Body.Close()
-	const maxPackage = 128 << 20
-	limited := io.LimitReader(resp.Body, maxPackage+1)
-	data, readErr := io.ReadAll(limited)
-	if readErr != nil {
-		return nil, fmt.Errorf("read plugin package: %w", readErr)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxBody+1))
+	if err != nil {
+		return providerResponse{}, err
 	}
-	if len(data) > maxPackage {
-		return nil, fmt.Errorf("plugin package is too large")
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, providerError{code: providerErrorCode(resp.StatusCode, data)}
-	}
-	return data, nil
+	return providerResponse{status: resp.StatusCode, body: data, tooLarge: int64(len(data)) > maxBody}, nil
 }
 
 func providerErrorCode(status int, body []byte) string {
