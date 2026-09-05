@@ -98,6 +98,12 @@ func (m *Manager) StartShopAuthorization(returnURL, origin, operatorID string) (
 	if err != nil || shopURL.Host == "" || (shopURL.Scheme != "https" && shopURL.Scheme != "http") {
 		return ShopAuthorization{}, errors.New("shop authorization URL is invalid")
 	}
+	// Older customer configs used /shop without a trailing slash. Normalize
+	// that legacy path before adding the authorization query so a redirecting
+	// reverse proxy cannot drop state, instance, or callback parameters.
+	if shopURL.Path == "/shop" {
+		shopURL.Path = "/shop/"
+	}
 	state, err := newShopState()
 	if err != nil {
 		return ShopAuthorization{}, err

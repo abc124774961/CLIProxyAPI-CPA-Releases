@@ -295,6 +295,14 @@ if re.search(r"(?m)^\s*client-secret:\s*[^\s\"']", pool_config):
 pool_compose = Path("deploy/cpamp-pool-server/compose.yml").read_text(encoding="utf-8")
 if re.search(r"(?m)^\s*image:\s*local/", pool_compose):
     raise SystemExit("FAIL: CPAMP compose template uses a local image")
+for expected in (
+    'CPA_MANAGEMENT_KEY_FILE: "/run/secrets/cpa_management_key"',
+    'CPA_MANAGER_ADMIN_KEY_FILE: "/run/secrets/cpamp_admin_key"',
+):
+    if expected not in pool_compose:
+        raise SystemExit(f"FAIL: CPAMP compose template is missing the short-form secret mount path: {expected}")
+if re.search(r"/run/secrets/(?:cpa-management-key|cpamp-admin-key)", pool_compose):
+    raise SystemExit("FAIL: CPAMP compose template points at hyphenated short-form secret paths")
 
 env_values = {}
 for raw_line in Path(".env.example").read_text(encoding="utf-8").splitlines():

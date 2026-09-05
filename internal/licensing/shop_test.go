@@ -1,6 +1,7 @@
 package licensing
 
 import (
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -35,6 +36,29 @@ func TestShopStateBindsOriginAndIsConsumedOnExchange(t *testing.T) {
 	m.shopMu.Unlock()
 	if err := m.ValidateShopState(authorization.State); err == nil {
 		t.Fatal("expected expired state")
+	}
+}
+
+func TestStartShopAuthorizationNormalizesLegacyShopPath(t *testing.T) {
+	m := &Manager{
+		cfg:        Config{ProductCode: "CPA", ShopAuthURL: "https://shop.example.test/shop?authorize=cpa", ShopExchangePath: "/exchange"},
+		instance:   "instance-1",
+		shopStates: make(map[string]shopState),
+	}
+	authorization, err := m.StartShopAuthorization("http://manager.example.test/license/shop/callback", "http://manager.example.test", "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := url.Parse(authorization.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Path != "/shop/" {
+		t.Fatalf("shop path = %q, want /shop/", parsed.Path)
+	}
+	query := parsed.Query()
+	if query.Get("authorize") != "cpa" || query.Get("state") == "" || query.Get("redirect_uri") == "" || query.Get("instance_id") != "instance-1" {
+		t.Fatalf("normalized authorization query is incomplete: %s", parsed.RawQuery)
 	}
 }
 

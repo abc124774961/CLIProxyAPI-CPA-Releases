@@ -17,19 +17,19 @@
 
 ## 当前发布组合
 
-本次公开组合发布 tag 为 `v7.2.148-cpa.5`。该 tag 是 CPA CLI 与 CPAMP 客户部署包的统一发布锚点；组件自身保持已验证的版本和镜像 tag，不会因为重新打包而伪造组件版本。 `release-manifest.json` 与 `release-catalog.json` 中的 `release_tag` 字段均指向该组合 tag。
+本次公开组合发布 tag 为 `v7.2.148-cpa.6`。该 tag 是 CPA CLI 与 CPAMP 客户部署包的统一发布锚点；组件自身保持已验证的版本和镜像 tag，不会因为重新打包而伪造组件版本。 `release-manifest.json` 与 `release-catalog.json` 中的 `release_tag` 字段均指向该组合 tag。
 
 | 组件 | 组件版本 / 镜像 tag | 固定镜像 | 组合发布 tag | 架构 |
 | --- | --- | --- | --- | --- |
-| CPA CLI | `v7.2.148-cpa.4` | `ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.4` | `v7.2.148-cpa.5` | `linux/amd64`、`linux/arm64` |
-| CPAMP（Manager + Agent） | `v1.12.8-cpa.2` | `ghcr.io/abc124774961/cpa-manager-plus:v1.12.8-cpa.2` | `v7.2.148-cpa.5` | `linux/amd64`、`linux/arm64` |
+| CPA CLI | `v7.2.148-cpa.4` | `ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.4` | `v7.2.148-cpa.6` | `linux/amd64`、`linux/arm64` |
+| CPAMP（Manager + Agent） | `v1.12.8-cpa.2` | `ghcr.io/abc124774961/cpa-manager-plus:v1.12.8-cpa.2` | `v7.2.148-cpa.6` | `linux/amd64`、`linux/arm64` |
 
-部署时固定组合发布 tag `v7.2.148-cpa.5`，或使用 `release-catalog.json` 中对应组件的 digest；不使用 `latest`。
+部署时固定组合发布 tag `v7.2.148-cpa.6`，或使用 `release-catalog.json` 中对应组件的 digest；不使用 `latest`。
 
 ## 客户服务器部署（Docker Compose）
 
 普通用户**不需要访问 CPA-Manager-Pro 私有源码仓库**，也不需要 clone 私有代码。本公开仓库已经包含
-CPA CLI/CPAMP 的固定镜像、Compose 文件、安装脚本和配置模板；按统一发布 tag `v7.2.148-cpa.5` 获取配套文件，完整命令请按
+CPA CLI/CPAMP 的固定镜像、Compose 文件、安装脚本和配置模板；按统一发布 tag `v7.2.148-cpa.6` 获取配套文件，完整命令请按
 [中文部署流程](docs/deployment-cpa-cpamp.zh-CN.md) 执行。流程摘要：
 
 1. 在客户服务器准备 Docker Engine、Compose v2，并固定 CPA/CPAMP 版本。
@@ -39,7 +39,7 @@ CPA CLI/CPAMP 的固定镜像、Compose 文件、安装脚本和配置模板；�
 5. 所有 Compose 操作显式使用 `--env-file .env`，启动后检查 CPA `/healthz`、CPAMP `/health` 和面板日志。
 6. 升级只替换已验证的 tag/digest，保留 `data/license`、CPA 配置、Manager 数据和备份；不要执行 `down -v`。
 
-也可直接运行仓库根目录的 `install-cpa-cli-release.sh` 安装预构建 CPA CLI 客户包，或运行 `install-cpamp-release.sh` 安装 CPAMP 客户包；两者均从统一公开 Release `v7.2.148-cpa.5` 下载，包内包含对应平台的可执行产物、镜像归档（如发布资产提供）、Compose/配置模板和部署脚本，普通用户无需访问 `CPA-Manager-Pro` 源码仓库。需要从 checkout 的源码树本地构建 CPA 时，再使用 `install-cpa-release.sh`。
+也可直接运行仓库根目录的 `install-cpa-cli-release.sh` 安装预构建 CPA CLI 客户包，或运行 `install-cpamp-release.sh` 安装 CPAMP 客户包；两者均从统一公开 Release `v7.2.148-cpa.6` 下载，包内包含对应平台的可执行产物、镜像归档（如发布资产提供）、Compose/配置模板和部署脚本，普通用户无需访问 `CPA-Manager-Pro` 源码仓库。需要从 checkout 的源码树本地构建 CPA 时，再使用 `install-cpa-release.sh`。
 
 商城授权地址为 `https://p.666ttt.net/api/storefront`。正式授权和到期宽限租约由商城签名；本地网络故障兜底最多 6 小时，修改客户机配置不会延长商城租约。公开版如果遗留了旧 Secret，服务端返回 `401 provider_rejected` 时客户端会自动重试一次并移除 `Authorization`，不需要手工改代码。若客户仍使用旧安装包，必须重新下载包含本修复的最新组合 Release；只刷新页面或只修改 `.env` 不会替换已运行的二进制。真实 Secret、授权租约和客户数据不得提交到 Git。
 

@@ -9,12 +9,12 @@
 
 ## 当前发布组合
 
-统一公开发布 tag：`v7.2.148-cpa.5`。这是客户获取两项组件、部署模板和安装包的组合锚点；组件版本和镜像 tag 仍按已验证记录保持不变。 清单中的顶层 `version`/`release_tag` 表示组合发布，组件对象中的 `version`/`tag`/镜像 tag 表示实际运行产物。
+统一公开发布 tag：`v7.2.148-cpa.6`。这是客户获取两项组件、部署模板和安装包的组合锚点；组件版本和镜像 tag 仍按已验证记录保持不变。 清单中的顶层 `version`/`release_tag` 表示组合发布，组件对象中的 `version`/`tag`/镜像 tag 表示实际运行产物。
 
 | 组件 | 组件版本 / 镜像 tag | 镜像 | 组合发布 tag |
 | --- | --- | --- | --- |
-| CPA CLI | `v7.2.148-cpa.4` | `ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.4` | `v7.2.148-cpa.5` |
-| CPAMP（Manager + Agent） | `v1.12.8-cpa.2` | `ghcr.io/abc124774961/cpa-manager-plus:v1.12.8-cpa.2` | `v7.2.148-cpa.5` |
+| CPA CLI | `v7.2.148-cpa.4` | `ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.4` | `v7.2.148-cpa.6` |
+| CPAMP（Manager + Agent） | `v1.12.8-cpa.2` | `ghcr.io/abc124774961/cpa-manager-plus:v1.12.8-cpa.2` | `v7.2.148-cpa.6` |
 
 两项均支持 `linux/amd64` 与 `linux/arm64`。平台 digest、校验和及源码提交见
 [release-catalog.json](../release-catalog.json) 和 [release-manifest.json](../release-manifest.json)。
@@ -28,7 +28,7 @@
 ## 2. 部署 CPA CLI
 
 ```bash
-git clone --branch v7.2.148-cpa.5 --depth 1 \
+git clone --branch v7.2.148-cpa.6 --depth 1 \
   https://github.com/abc124774961/CLIProxyAPI-CPA-Releases.git /opt/cpa-release
 cd /opt/cpa-release
 cp config.example.yaml config.yaml
@@ -59,7 +59,7 @@ docker compose --env-file .env -f docker-compose.yml up -d cli-proxy-api
 curl -fsS http://127.0.0.1:${CLI_PROXY_HOST_PORT:-8317}/healthz
 ```
 
-需要使用预构建 CPA CLI 包时，可使用仓库中的 [`install-cpa-cli-release.sh`](../install-cpa-cli-release.sh)；该安装器默认使用组合发布 tag `v7.2.148-cpa.5`，按主机架构下载清单登记的 CPA CLI 二进制和镜像归档。若需要从公开仓库 checkout 后本地构建 CPA，再使用 [`install-cpa-release.sh`](../install-cpa-release.sh)。
+需要使用预构建 CPA CLI 包时，可使用仓库中的 [`install-cpa-cli-release.sh`](../install-cpa-cli-release.sh)；该安装器默认使用组合发布 tag `v7.2.148-cpa.6`，按主机架构下载清单登记的 CPA CLI 二进制和镜像归档。若需要从公开仓库 checkout 后本地构建 CPA，再使用 [`install-cpa-release.sh`](../install-cpa-release.sh)。
 
 ## 3. 部署 CPAMP
 
@@ -67,7 +67,7 @@ curl -fsS http://127.0.0.1:${CLI_PROXY_HOST_PORT:-8317}/healthz
 Manager、Agent、固定镜像归档、Compose 文件和全部部署脚本，不会访问 `CPA-Manager-Pro` 源码仓库：
 
 ```bash
-RELEASE_TAG=v7.2.148-cpa.5
+RELEASE_TAG=v7.2.148-cpa.6
 curl -fL \
   "https://raw.githubusercontent.com/abc124774961/CLIProxyAPI-CPA-Releases/${RELEASE_TAG}/install-cpamp-release.sh" \
   -o install-cpamp-release.sh

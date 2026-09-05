@@ -12,7 +12,7 @@
         "version": "v7.2.148-cpa.4",
         "tag": "v7.2.148-cpa.4",
         "source_commit": "0930dd4c966d34a433d89b16fa4838f1977773d3",
-        "release_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.5",
+        "release_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.6",
         "image": "ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.4",
         "image_digest": "sha256:f6dc9ba8d8ca2100ab5deac54ca3976878c71ff3db1445d2e4c23f4b140141e2",
         "platform_digests": {
@@ -24,11 +24,11 @@
           "linux/amd64": "CPA-CLI-v7.2.148-cpa.4-linux-amd64.tar.gz",
           "linux/arm64": "CPA-CLI-v7.2.148-cpa.4-linux-arm64.tar.gz"
         },
-        "release_tag": "v7.2.148-cpa.5",
+        "release_tag": "v7.2.148-cpa.6",
         "display_name": "CLIProxyAPI CPA CLI",
         "source_repository": "https://github.com/router-for-me/CLIProxyAPI",
         "release_repository": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases",
-        "checksums_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/download/v7.2.148-cpa.5/checksums.txt",
+        "checksums_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/download/v7.2.148-cpa.6/checksums.txt",
         "platforms": [
           "linux/amd64",
           "linux/arm64"
@@ -44,8 +44,18 @@
         {
           "version": "v7.2.148-cpa.4",
           "tag": "v7.2.148-cpa.4",
-          "tag_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.5",
+          "tag_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.6",
           "status": "current",
+          "release_tag": "v7.2.148-cpa.6",
+          "component_tag": "v7.2.148-cpa.4",
+          "image": "ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.4",
+          "image_digest": "sha256:f6dc9ba8d8ca2100ab5deac54ca3976878c71ff3db1445d2e4c23f4b140141e2"
+        },
+        {
+          "version": "v7.2.148-cpa.4",
+          "tag": "v7.2.148-cpa.4",
+          "tag_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.5",
+          "status": "previous",
           "release_tag": "v7.2.148-cpa.5",
           "component_tag": "v7.2.148-cpa.4"
         },
@@ -70,7 +80,7 @@
           "status": "tag-only"
         }
       ],
-      "release_tag": "v7.2.148-cpa.5"
+      "release_tag": "v7.2.148-cpa.6"
     },
     "cpamp": {
       "display_name": "CPA Manager Plus pool bundle",
@@ -80,7 +90,7 @@
         "version": "v1.12.8-cpa.2",
         "tag": "v1.12.8-cpa.2",
         "source_commit": "819d61d5cd5e46dad29f84ab2af073031ff9166e",
-        "release_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.5",
+        "release_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.6",
         "image": "ghcr.io/abc124774961/cpa-manager-plus:v1.12.8-cpa.2",
         "image_digest": "sha256:d3dec2396642324f4ed0c8daec7bb85ee304d2326a081507878a60949237402b",
         "platform_digests": {
@@ -93,7 +103,7 @@
           "linux/amd64": "CPAMP-v1.12.8-cpa.2-linux-amd64.tar.gz",
           "linux/arm64": "CPAMP-v1.12.8-cpa.2-linux-arm64.tar.gz"
         },
-        "release_tag": "v7.2.148-cpa.5",
+        "release_tag": "v7.2.148-cpa.6",
         "display_name": "CPA Manager Plus pool bundle",
         "source_repository": "https://github.com/abc124774961/CPA-Manager-Pro",
         "release_repository": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases",
@@ -113,8 +123,16 @@
         {
           "version": "v1.12.8-cpa.2",
           "tag": "v1.12.8-cpa.2",
-          "tag_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.5",
+          "tag_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.6",
           "status": "current",
+          "release_tag": "v7.2.148-cpa.6",
+          "component_tag": "v1.12.8-cpa.2"
+        },
+        {
+          "version": "v1.12.8-cpa.2",
+          "tag": "v1.12.8-cpa.2",
+          "tag_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.5",
+          "status": "previous",
           "release_tag": "v7.2.148-cpa.5",
           "component_tag": "v1.12.8-cpa.2"
         },
@@ -127,7 +145,7 @@
           "component_tag": "v1.12.8-cpa.1"
         }
       ],
-      "release_tag": "v7.2.148-cpa.5"
+      "release_tag": "v7.2.148-cpa.6"
     }
   },
   "deployment": {
@@ -145,16 +163,16 @@
     "template_dir": "deploy/cpamp-pool-server",
     "compose_file": "deploy/cpamp-pool-server/compose.yml",
     "readme": "deploy/cpamp-pool-server/README.md",
-    "public_template": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/tree/v7.2.148-cpa.5/deploy/cpamp-pool-server",
+    "public_template": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/tree/v7.2.148-cpa.6/deploy/cpamp-pool-server",
     "references": {
       "cli_source": "https://github.com/router-for-me/CLIProxyAPI",
       "cpamp_source": "https://github.com/abc124774961/CPA-Manager-Pro",
       "cpamp_full_template": "https://github.com/abc124774961/CPA-Manager-Pro/tree/main/deploy/pool-server",
       "user_manual_zh_cn": "https://help.router-for.me/cn/"
     },
-    "release_tag": "v7.2.148-cpa.5"
+    "release_tag": "v7.2.148-cpa.6"
   },
-  "release_tag": "v7.2.148-cpa.5",
+  "release_tag": "v7.2.148-cpa.6",
   "artifacts": {
     "checksums": "checksums.txt",
     "panel": "management.html",

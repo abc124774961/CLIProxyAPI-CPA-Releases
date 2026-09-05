@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bootstrap and operate the public CPA pool stack (bundle v7.2.148-cpa.5).
+# Bootstrap and operate the public CPA pool stack (bundle v7.2.148-cpa.6).
 #
 # The script is deliberately local and deterministic:
 #   * .env is created once and then preserved between runs;
