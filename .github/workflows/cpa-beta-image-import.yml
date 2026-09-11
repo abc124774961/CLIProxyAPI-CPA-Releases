@@ -8,7 +8,7 @@ on:
       - '.github/workflows/cpa-beta-image-import.yml'
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 concurrency:
