@@ -1,0 +1,42 @@
+name: Import pinned CPA beta images
+
+on:
+  push:
+    branches:
+      - 'codex/beta-image-import-20260911'
+    paths:
+      - '.github/workflows/cpa-beta-image-import.yml'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: cpa-beta2-image-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v7.2.148-cpa.7-beta.2
+          persist-credentials: false
+      - name: Verify immutable release source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = dc9510fbac0f5e730ae80d99e8d093180a0d154c
+          python3 scripts/validate-beta-images.py plan beta-image-imports.json release-manifest.json v7.2.148-cpa.7-beta.2
+      - name: Install OCI registry tooling
+        run: sudo apt-get update && sudo apt-get install -y skopeo
+      - name: Import digest-verified archives
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Skopeo restores archive ownership. Only this ephemeral runner needs
+          # root; registry credentials remain in environment and temporary files.
+          sudo --preserve-env=GH_TOKEN,GITHUB_REPOSITORY,GITHUB_ACTOR,RUNNER_TEMP \
+            bash scripts/publish-beta-images.sh v7.2.148-cpa.7-beta.2
