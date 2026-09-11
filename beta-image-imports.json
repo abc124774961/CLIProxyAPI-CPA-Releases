@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "release_tag": "v7.2.148-cpa.7-beta.1",
+  "entries": [
+    {
+      "image": "ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7-beta.1",
+      "archive": "cpa-beta.oci.tar",
+      "sha256": "0e54c5ff6ee20ff356f20f54fda04accd835cba34cc975b33652ec19919e6949",
+      "image_digest": "sha256:7ab5b3e9c4f31e136163af49e5b2b0403567798928e4ec899239e121fe5ce8e7",
+      "source_commit": "0d58282b116399792d896e1eecdcb0ea2624f3c7",
+      "platform_digests": {
+        "linux/amd64": "sha256:42b2a589f11954c9b8d7aa3666f208c3ca3f9d01cf3c27e261b5be605f08fa73",
+        "linux/arm64": "sha256:bcc9df2a1d7abfea1a0711227aa394818a3d548216fbd3c8f42529b0337a0bea"
+      }
+    },
+    {
+      "image": "ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1-beta.1",
+      "archive": "cpamp-image-final.oci.tar",
+      "sha256": "d1102d239590868615ccd654ae8609091eac6102a75f5c94d8eb2ab2f98ae004",
+      "image_digest": "sha256:1bc7b0686ebaee44eb1e17cc6abb4687eaf238f3d603811bf42efb6ddbb799b3",
+      "source_commit": "21cff70cdc4ffc2f1b51ae64e101d573f3f45b8d",
+      "platform_digests": {
+        "linux/amd64": "sha256:b36688971bf3af8b0df65d30ff8f9a8592fdd7390a86f2d90bdc3e46d06eb8dd",
+        "linux/arm64": "sha256:46c74b50150432b584e81f2e32e3e4a59cb2a6a939521235cfc3bed06013b44c"
+      }
+    }
+  ]
+}

@@ -43,6 +43,10 @@ required_files=(
   scripts/check-license-runtime_test.sh
   scripts/package-cpa-release.sh
   scripts/package-cpamp-release.sh
+  scripts/package-public-release.sh
+  scripts/release-beta_test.sh
+  scripts/publish-beta-images.sh
+  scripts/validate-beta-images.py
 )
 for path in "${required_files[@]}"; do
   [[ -f "$path" ]] || { echo "FAIL: release file is missing: $path" >&2; exit 1; }
@@ -86,7 +90,7 @@ from pathlib import Path
 expected = sys.argv[1].strip()
 manifest = json.loads(Path("release-manifest.json").read_text(encoding="utf-8"))
 version = str(manifest.get("version", ""))
-if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+", version):
+if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+(?:-beta\.[1-9][0-9]*)?", version):
     raise SystemExit("FAIL: release-manifest.json contains an invalid version")
 if expected and version != expected:
     raise SystemExit(f"FAIL: manifest version {version} does not match {expected}")
@@ -216,7 +220,7 @@ for component_name in ("cpa_cli", "cpamp"):
     if not isinstance(published_tags, list) or not published_tags:
         raise SystemExit(f"FAIL: {component_name} catalog has no published tags")
     for entry in published_tags:
-        if not isinstance(entry, dict) or not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+", str(entry.get("version", ""))):
+        if not isinstance(entry, dict) or not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+(?:-beta\.[1-9][0-9]*)?", str(entry.get("version", ""))):
             raise SystemExit(f"FAIL: {component_name} catalog contains an invalid published tag")
         tag_url = str(entry.get("tag_url", ""))
         if not tag_url.startswith("https://github.com/"):
@@ -804,7 +808,7 @@ CLI_PROXY_AUTH_PATH=$tmp_dir/auths
 CLI_PROXY_LOG_PATH=$tmp_dir/logs
 CLI_PROXY_PLUGIN_PATH=$tmp_dir/plugins
 CLI_PROXY_LICENSE_PATH=$tmp_dir/license
-CLI_PROXY_PULL_POLICY=build
+CLI_PROXY_PULL_POLICY=always
 EOF
 mkdir -p "$tmp_dir/auths" "$tmp_dir/logs" "$tmp_dir/plugins" "$tmp_dir/license"
 

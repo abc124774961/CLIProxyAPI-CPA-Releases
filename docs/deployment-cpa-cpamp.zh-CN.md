@@ -9,12 +9,14 @@
 
 ## 当前发布组合
 
-统一公开发布 tag：`v7.2.148-cpa.6`。这是客户获取两项组件、部署模板和安装包的组合锚点；组件版本和镜像 tag 仍按已验证记录保持不变。 清单中的顶层 `version`/`release_tag` 表示组合发布，组件对象中的 `version`/`tag`/镜像 tag 表示实际运行产物。
+本分支为需要显式选择版本的 Beta，既有稳定版保持原状。先阅读 [Beta 安装与隔离说明](release-beta-20260911.zh-CN.md)。
+
+统一公开发布 tag：`v7.2.148-cpa.7-beta.1`。这是客户获取两项组件、部署模板和安装包的组合锚点；组件版本和镜像 tag 仍按已验证记录保持不变。 清单中的顶层 `version`/`release_tag` 表示组合发布，组件对象中的 `version`/`tag`/镜像 tag 表示实际运行产物。
 
 | 组件 | 组件版本 / 镜像 tag | 镜像 | 组合发布 tag |
 | --- | --- | --- | --- |
-| CPA CLI | `v7.2.148-cpa.4` | `ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.4` | `v7.2.148-cpa.6` |
-| CPAMP（Manager + Agent） | `v1.12.8-cpa.2` | `ghcr.io/abc124774961/cpa-manager-plus:v1.12.8-cpa.2` | `v7.2.148-cpa.6` |
+| CPA CLI | `v7.2.148-cpa.7-beta.1` | `ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7-beta.1` | `v7.2.148-cpa.7-beta.1` |
+| CPAMP（Manager + Agent） | `v1.12.10-cpa.1-beta.1` | `ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1-beta.1` | `v7.2.148-cpa.7-beta.1` |
 
 两项均支持 `linux/amd64` 与 `linux/arm64`。平台 digest、校验和及源码提交见
 [release-catalog.json](../release-catalog.json) 和 [release-manifest.json](../release-manifest.json)。
@@ -28,7 +30,7 @@
 ## 2. 部署 CPA CLI
 
 ```bash
-git clone --branch v7.2.148-cpa.6 --depth 1 \
+git clone --branch v7.2.148-cpa.7-beta.1 --depth 1 \
   https://github.com/abc124774961/CLIProxyAPI-CPA-Releases.git /opt/cpa-release
 cd /opt/cpa-release
 cp config.example.yaml config.yaml
@@ -59,7 +61,7 @@ docker compose --env-file .env -f docker-compose.yml up -d cli-proxy-api
 curl -fsS http://127.0.0.1:${CLI_PROXY_HOST_PORT:-8317}/healthz
 ```
 
-需要使用预构建 CPA CLI 包时，可使用仓库中的 [`install-cpa-cli-release.sh`](../install-cpa-cli-release.sh)；该安装器默认使用组合发布 tag `v7.2.148-cpa.6`，按主机架构下载清单登记的 CPA CLI 二进制和镜像归档。若需要从公开仓库 checkout 后本地构建 CPA，再使用 [`install-cpa-release.sh`](../install-cpa-release.sh)。
+需要使用预构建 CPA CLI 包时，运行 [`install-cpa-cli-release.sh`](../install-cpa-cli-release.sh) 并显式传入 `--version v7.2.148-cpa.7-beta.1`，按主机架构下载清单登记的二进制和镜像归档。Beta 使用预构建产物，旧源码编译安装器仅用于其对应的稳定源码版本。
 
 ## 3. 部署 CPAMP
 
@@ -67,7 +69,7 @@ curl -fsS http://127.0.0.1:${CLI_PROXY_HOST_PORT:-8317}/healthz
 Manager、Agent、固定镜像归档、Compose 文件和全部部署脚本，不会访问 `CPA-Manager-Pro` 源码仓库：
 
 ```bash
-RELEASE_TAG=v7.2.148-cpa.6
+RELEASE_TAG=v7.2.148-cpa.7-beta.1
 curl -fL \
   "https://raw.githubusercontent.com/abc124774961/CLIProxyAPI-CPA-Releases/${RELEASE_TAG}/install-cpamp-release.sh" \
   -o install-cpamp-release.sh
@@ -83,17 +85,19 @@ cp .env.example .env
 ```bash
 mkdir -p /opt/cpa-pool
 cp -a /opt/cpa-release/deploy/cpamp-pool-server/. /opt/cpa-pool/
+cp /opt/cpa-release/management.html /opt/cpa-pool/management.html
 cd /opt/cpa-pool
 cp .env.example .env
 ```
 
-确认 `CPA_IMAGE` 和 `CPAMP_IMAGE` 与上表完全一致（CPA 镜像 tag 是 `v7.2.148-cpa.4`，CPAMP 镜像 tag 是 `v1.12.8-cpa.2`，不要把组合发布 tag 当成镜像 tag）。Manager 与 Agent 必须使用同一 CPAMP 镜像 tag。
+确认 `CPA_IMAGE` 和 `CPAMP_IMAGE` 与上表完全一致（CPA 镜像 tag 是 `v7.2.148-cpa.7-beta.1`，CPAMP 镜像 tag 是 `v1.12.10-cpa.1-beta.1`，不要把组合发布 tag 当成镜像 tag）。Manager 与 Agent 必须使用同一 CPAMP 镜像 tag。
 填好商城客户端 ID 和 Secret 后执行：
 
 ```bash
 chmod +x bootstrap.sh preflight.sh
 mkdir -p -m 700 secrets
 install -m 600 /path/to/storefront-secret secrets/cpa-license-client-secret
+./bootstrap.sh --render
 ./preflight.sh
 docker compose --env-file .env -f compose.yml pull
 docker compose --env-file .env -f compose.yml up -d

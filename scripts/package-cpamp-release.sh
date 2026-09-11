@@ -110,7 +110,7 @@ cpamp_source_commit="$(read_manifest_value components.cpamp.source_commit)"
 panel_asset="$(read_manifest_value components.cpamp.panel_asset)"
 panel_asset_sha256="$(read_manifest_value components.cpamp.panel_asset_sha256)"
 
-[[ "$cpamp_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+$ ]] || die "invalid CPAMP version in release manifest"
+[[ "$cpamp_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+(-beta\.[1-9][0-9]*)?$ ]] || die "invalid CPAMP version in release manifest"
 [[ "$cpamp_image" != *[[:space:]]* && "$cpamp_image" != *@* ]] || die "CPAMP image must be a tag reference"
 [[ "$cpamp_image_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || die "invalid CPAMP image digest in release manifest"
 [[ "$cpamp_source_commit" =~ ^[0-9a-fA-F]{40}$ ]] || die "invalid CPAMP source commit in release manifest"
@@ -310,6 +310,8 @@ fi
   mkdir -p "$package_dir/docs"
   cp "$repo_root/docs/deployment-cpa-cpamp.zh-CN.md" \
     "$package_dir/docs/deployment-cpa-cpamp.zh-CN.md"
+  cp "$repo_root/docs/release-beta-20260911.zh-CN.md" \
+    "$package_dir/docs/release-beta-20260911.zh-CN.md"
   cp "$repo_root/release-manifest.json" "$package_dir/release-manifest.json"
   cp "$repo_root/release-catalog.json" "$package_dir/release-catalog.json"
   cat > "$package_dir/README.zh-CN.md" <<'EOF'
@@ -330,7 +332,9 @@ fi
 docker load -i image/cpamp-image.tar
 ```
 
-然后在 `deploy/cpamp-pool-server/.env` 中将 `CPAMP_PULL_POLICY` 设为 `never`，再运行 bootstrap。
+同时从本组合的 CPA CLI 包加载 CPA 镜像；在 `deploy/cpamp-pool-server/.env` 中将
+`CPA_PULL_POLICY` 和 `CPAMP_PULL_POLICY` 都设为 `never`，再运行 `./bootstrap.sh --no-pull`。
+CPAMP Manager/Agent 使用 `CGO_ENABLED=0`；CPA CLI 原生二进制需要 GLIBC 2.36+，旧系统使用随包 Docker 镜像。
 EOF
   sed -i.bak \
     -e "s|__VERSION__|$cpamp_version|g" \

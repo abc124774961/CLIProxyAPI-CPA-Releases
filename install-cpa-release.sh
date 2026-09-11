@@ -170,8 +170,11 @@ case "$release_repo" in
   */*) ;;
   *) die "CPA_RELEASE_REPO must be OWNER/REPOSITORY" ;;
 esac
-if [[ ! "$release_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+$ ]]; then
+if [[ ! "$release_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+(-beta\.[1-9][0-9]*)?$ ]]; then
   die "CPA_RELEASE_VERSION must be a pinned tag such as v7.2.148-cpa.6"
+fi
+if [[ "$release_version" == *-beta.* ]]; then
+  die "Beta releases use prebuilt artifacts; run install-cpa-cli-release.sh --version $release_version instead"
 fi
 
 command -v git >/dev/null 2>&1 || die "git is required"

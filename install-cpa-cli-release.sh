@@ -89,7 +89,7 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 [[ "$release_repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail "发布仓库格式必须为 OWNER/REPOSITORY"
-[[ "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+$ ]] || fail "发布 tag 格式不正确：$release_tag"
+[[ "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+(-beta\.[1-9][0-9]*)?$ ]] || fail "发布 tag 格式不正确：$release_tag"
 for flag_name in allow_existing load_image run_after_install dry_run; do
   flag_value="${!flag_name}"
   [[ "$flag_value" == 0 || "$flag_value" == 1 ]] || fail "$flag_name 必须为 0 或 1"
@@ -198,7 +198,7 @@ PY
 artifact_name="$(read_component_platform artifacts)"
 platform_digest="$(read_component_platform platform_digests)"
 
-[[ "$component_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+$ ]] || fail "公开清单中的 CPA CLI 版本格式不正确"
+[[ "$component_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+(-beta\.[1-9][0-9]*)?$ ]] || fail "公开清单中的 CPA CLI 版本格式不正确"
 [[ "$component_image" =~ ^[^[:space:]@]+:[^[:space:]@]+$ ]] || fail "公开清单中的 CPA 镜像必须是带 tag 的引用"
 [[ "$component_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || fail "公开清单中的 CPA 镜像 digest 不正确"
 [[ "$platform_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || fail "公开清单中的平台 digest 不正确"

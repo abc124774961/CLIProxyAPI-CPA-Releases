@@ -86,7 +86,7 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 [[ "$release_repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "CPAMP_RELEASE_REPO 格式必须为 OWNER/REPOSITORY"
-[[ "$release_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+$ ]] || die "发布 tag 格式不正确：$release_version"
+[[ "$release_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+(-beta\.[1-9][0-9]*)?$ ]] || die "发布 tag 格式不正确：$release_version"
 [[ "$allow_existing" == 0 || "$allow_existing" == 1 ]] || die "CPAMP_ALLOW_EXISTING 必须为 0 或 1"
 [[ "$load_image" == 0 || "$load_image" == 1 ]] || die "CPAMP_LOAD_IMAGE 必须为 0 或 1"
 [[ "$run_bootstrap" == 0 || "$run_bootstrap" == 1 ]] || die "CPAMP_RUN_BOOTSTRAP 必须为 0 或 1"
@@ -160,7 +160,7 @@ if not isinstance(version, str) or not version:
 print(version)
 PY
 )"
-[[ "$cpamp_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+$ ]] || die "公开清单中的 CPAMP 版本格式不正确"
+[[ "$cpamp_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+(-beta\.[1-9][0-9]*)?$ ]] || die "公开清单中的 CPAMP 版本格式不正确"
 cpamp_image="$(python3 - "$tmp_dir/download/release-manifest.json" <<'PY'
 import json
 import sys
@@ -236,20 +236,36 @@ template_cpamp_image="$(awk -F= '$1 == "CPAMP_IMAGE" { print $2; exit }' \
 [[ "$template_cpamp_image" == "$cpamp_image" ]] || die \
   "发布包 CPAMP_IMAGE 与公开清单不一致：$template_cpamp_image"
 
-image_archive_path="$(python3 - "$package_dir/package-manifest.json" "$cpamp_version" "linux/${arch}" "$cpamp_image" <<'PY'
+image_archive_path="$(python3 - "$package_dir/package-manifest.json" "$cpamp_version" "linux/${arch}" "$cpamp_image" "$tmp_dir/download/release-manifest.json" "$release_version" <<'PY'
+import hashlib
 import json
 import re
 import sys
+import tarfile
 from pathlib import Path
 
-path, expected_version, expected_platform, expected_image = sys.argv[1:]
+path, expected_version, expected_platform, expected_image, release_path, expected_release = sys.argv[1:]
 manifest = json.loads(Path(path).read_text(encoding="utf-8"))
+release = json.loads(Path(release_path).read_text(encoding="utf-8"))
+if release.get("version") != expected_release:
+    raise SystemExit("release manifest version mismatch")
+component = release.get("components", {}).get("cpamp", {})
 if manifest.get("schema_version") != 1 or manifest.get("component") != "cpamp":
     raise SystemExit("package manifest schema/component mismatch")
 if manifest.get("version") != expected_version or manifest.get("platform") != expected_platform:
     raise SystemExit("package manifest version/platform mismatch")
 if manifest.get("image") != expected_image or manifest.get("image_load_ref") != expected_image:
     raise SystemExit("package manifest image tag does not match release .env.example")
+for field in ("image_digest", "source_commit", "panel_asset", "panel_asset_sha256"):
+    if manifest.get(field) != component.get(field):
+        raise SystemExit("package manifest disagrees with public release: " + field)
+if manifest.get("platform_digest") != (component.get("platform_digests") or {}).get(expected_platform):
+    raise SystemExit("package manifest platform digest disagrees with public release")
+if manifest.get("panel_asset") != "management.html":
+    raise SystemExit("package manifest panel asset mismatch")
+panel = Path(path).parent / "management.html"
+if hashlib.sha256(panel.read_bytes()).hexdigest() != manifest.get("panel_asset_sha256"):
+    raise SystemExit("package panel checksum mismatch")
 if manifest.get("binaries") != ["bin/cpa-manager-plus", "bin/cpamp-agent"]:
     raise SystemExit("package manifest binaries mismatch")
 if manifest.get("deployment_template") != "deploy/cpamp-pool-server":
@@ -277,6 +293,16 @@ else:
         raise SystemExit("package manifest image archive mismatch")
     if manifest.get("image_archive_tag") != expected_image:
         raise SystemExit("package manifest image archive tag does not match release image")
+    try:
+        with tarfile.open(Path(path).parent / image_archive, "r:") as archive:
+            images = json.load(archive.extractfile(archive.getmember("manifest.json")))
+            if not isinstance(images, list) or len(images) != 1 or images[0].get("RepoTags") != [expected_image]:
+                raise SystemExit("CPAMP image archive tag mismatch")
+            config = json.load(archive.extractfile(archive.getmember(images[0]["Config"])))
+            if config.get("os") + "/" + config.get("architecture") != expected_platform:
+                raise SystemExit("CPAMP image archive platform mismatch")
+    except (KeyError, OSError, tarfile.TarError, json.JSONDecodeError, TypeError) as exc:
+        raise SystemExit(f"CPAMP image archive is invalid: {exc}")
     print(image_archive)
 expected_contents = [
     "bin/cpa-manager-plus",

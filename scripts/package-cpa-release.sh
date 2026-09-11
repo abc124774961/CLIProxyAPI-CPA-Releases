@@ -108,7 +108,7 @@ cpa_image="$(read_manifest_value components.cpa_cli.image)"
 cpa_image_digest="$(read_manifest_value components.cpa_cli.image_digest)"
 cpa_source_commit="$(read_manifest_value components.cpa_cli.source_commit 2>/dev/null || printf unknown)"
 
-[[ "$cpa_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+$ ]] || die "invalid CPA CLI version in release manifest"
+[[ "$cpa_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+(-beta\.[1-9][0-9]*)?$ ]] || die "invalid CPA CLI version in release manifest"
 [[ "$cpa_image" != *[[:space:]]* && "$cpa_image" != *@* ]] || die "CPA CLI image must be a tag reference"
 [[ "$cpa_image_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || die "invalid CPA CLI image digest in release manifest"
 

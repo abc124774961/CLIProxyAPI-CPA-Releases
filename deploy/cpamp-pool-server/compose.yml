@@ -116,6 +116,7 @@ services:
       HTTP_ADDR: "0.0.0.0:${CPAMP_INTERNAL_PORT:-18317}"
       CPAMP_INTERNAL_PORT: "${CPAMP_INTERNAL_PORT:-18317}"
       USAGE_DB_PATH: "/data/usage.sqlite"
+      PANEL_PATH: "/panel/management.html"
       CPA_MANAGER_DATA_KEY_PATH: "/data/data.key"
       CPA_UPSTREAM_URL: "http://host.docker.internal:${CPA_PORT:-8317}"
       # Short-form Compose secrets use the declared name as the mount path.
@@ -140,6 +141,8 @@ services:
       - "${CPAMP_PORT:-18317}:${CPAMP_INTERNAL_PORT:-18317}"
     volumes:
       - "${CPAMP_DATA_DIR:-./data/manager}:/data"
+      # A directory mount also observes atomic HTML replacements.
+      - "${CPAMP_PANEL_DIR:-./panel}:/panel:ro"
     secrets:
       - cpamp_admin_key
       - cpa_management_key

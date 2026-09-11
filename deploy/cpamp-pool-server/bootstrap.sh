@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bootstrap and operate the public CPA pool stack (bundle v7.2.148-cpa.6).
+# Bootstrap and operate the public CPA pool stack (bundle v7.2.148-cpa.7-beta.1).
 #
 # The script is deliberately local and deterministic:
 #   * .env is created once and then preserved between runs;
@@ -489,6 +489,7 @@ copy_support_files
 if [ "$dry_run" != "1" ]; then chmod 600 "$env_file" 2>/dev/null || true; fi
 cpa_data_dir="$(normalize_path_var CPA_DATA_DIR "$project_dir/data/cpa")"
 cpamp_data_dir="$(normalize_path_var CPAMP_DATA_DIR "$project_dir/data/manager")"
+panel_dir="$(normalize_path_var CPAMP_PANEL_DIR "$project_dir/panel")"
 stack_root="$(normalize_path_var CPAMP_STACK_ROOT "$project_dir")"
 backup_root="$(normalize_path_var CPAMP_BACKUP_ROOT "$project_dir/backups")"
 admin_key_file="$(normalize_path_var CPAMP_ADMIN_KEY_FILE "$project_dir/secrets/cpamp-admin-key")"
@@ -503,6 +504,21 @@ if [ "$dry_run" != "1" ]; then
     "$cpamp_data_dir" "$stack_root" "$backup_root" "$(dirname -- "$admin_key_file")" \
     "$(dirname -- "$management_key_file")" "$(dirname -- "$license_secret_path")"
   chmod 700 "$(dirname -- "$admin_key_file")" "$(dirname -- "$management_key_file")" "$(dirname -- "$license_secret_path")" 2>/dev/null || true
+fi
+
+# Prefer the panel bundled with this release. Keep an existing installation
+# intact; an explicit upgrade must replace its panel together with its image.
+if [ ! -s "$panel_dir/management.html" ]; then
+  panel_source="$script_dir/../../management.html"
+  if [ ! -s "$panel_source" ]; then panel_source="$script_dir/management.html"; fi
+  if [ "$dry_run" = "1" ]; then
+    info "Would initialize the release panel at $panel_dir/management.html"
+  else
+    [ -s "$panel_source" ] || die "Bundled management.html is missing; place the release asset at $panel_dir/management.html"
+    mkdir -p "$panel_dir"
+    cp "$panel_source" "$panel_dir/management.html"
+    chmod 644 "$panel_dir/management.html"
+  fi
 fi
 
 # Generate/reuse credentials. Existing secret files win over stale .env values,
@@ -582,8 +598,8 @@ set_env CPA_LICENSE_CLIENT_SECRET_FILE ""
 set_env CPA_LICENSE_CLIENT_SECRET ""
 
 # Defaults that must be present before preflight and Compose interpolation.
-set_env CPA_IMAGE "$(value_or CPA_IMAGE ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.4)"
-set_env CPAMP_IMAGE "$(value_or CPAMP_IMAGE ghcr.io/abc124774961/cpa-manager-plus:v1.12.8-cpa.2)"
+set_env CPA_IMAGE "$(value_or CPA_IMAGE ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7-beta.1)"
+set_env CPAMP_IMAGE "$(value_or CPAMP_IMAGE ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1-beta.1)"
 set_env CPA_PULL_POLICY "$(value_or CPA_PULL_POLICY always)"
 set_env CPAMP_PULL_POLICY "$(value_or CPAMP_PULL_POLICY always)"
 set_env CPA_PORT "$(value_or CPA_PORT 8317)"
@@ -635,7 +651,7 @@ if [ "$dry_run" != "1" ]; then
 else
   # Dry-run validates the template and interpolation shape without requiring
   # the host Docker daemon or creating secret files.
-  "$script_dir/preflight.sh" --env-file "$env_file" --compose-file "$preflight_compose_file" --skip-docker --allow-missing-secrets || true
+  "$script_dir/preflight.sh" --env-file "$env_file" --compose-file "$preflight_compose_file" --dry-run --allow-missing-secrets || true
 fi
 
 if [ "$action" = "render" ] || [ "$no_start" = "1" ]; then

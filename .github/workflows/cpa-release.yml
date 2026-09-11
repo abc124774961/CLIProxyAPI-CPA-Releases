@@ -32,7 +32,8 @@ jobs:
         run: go build -buildvcs=false ./cmd/server
       - name: Validate customer install scripts
         run: |
-          bash -n install-cpa-release.sh install-cpa-cli-release.sh install-cpamp-release.sh scripts/package-cpa-release.sh scripts/package-cpamp-release.sh scripts/check-license-deployment.sh scripts/check-license-runtime.sh scripts/verify-release-bundle.sh
+          bash -n install-cpa-release.sh install-cpa-cli-release.sh install-cpamp-release.sh scripts/package-cpa-release.sh scripts/package-cpamp-release.sh scripts/package-public-release.sh scripts/publish-beta-images.sh scripts/release-beta_test.sh scripts/check-license-deployment.sh scripts/check-license-runtime.sh scripts/verify-release-bundle.sh
+          python3 -m py_compile scripts/validate-beta-images.py
           test -x install-cpa-release.sh
           test -x install-cpa-cli-release.sh
           test -x install-cpamp-release.sh
@@ -47,7 +48,9 @@ jobs:
           bash scripts/check-license-runtime_test.sh
       - name: Validate release tag format
         run: |
-          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+$ ]]
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+(-beta\.[1-9][0-9]*)?$ ]]
+      - name: Verify beta release isolation
+        run: bash scripts/release-beta_test.sh
       - name: Verify public release bundle
         run: scripts/verify-release-bundle.sh "$GITHUB_REF_NAME"
       - name: Validate CPAMP release template
@@ -56,14 +59,31 @@ jobs:
           temp_dir="$(mktemp -d)"
           trap 'rm -rf "$temp_dir"' EXIT
           cp -a deploy/cpamp-pool-server/. "$temp_dir/"
+          cp management.html "$temp_dir/management.html"
           mkdir -p "$temp_dir/secrets"
           printf '%s\n' 'release-verification-secret' > "$temp_dir/secrets/cpa-license-client-secret"
           chmod 600 "$temp_dir/secrets/cpa-license-client-secret"
           (cd "$temp_dir" && ./bootstrap.sh --render)
 
+  import_prebuilt:
+    name: Import verified beta images
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OCI registry tooling
+        if: contains(github.ref_name, '-beta.')
+        run: sudo apt-get update && sudo apt-get install -y skopeo
+      - name: Import immutable beta image archives
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/publish-beta-images.sh "$GITHUB_REF_NAME"
+
   package:
     name: Package release bundle
-    needs: verify
+    needs:
+      - verify
+      - import_prebuilt
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -83,7 +103,7 @@ jobs:
           mkdir -p dist
           rm -f dist/checksums.txt
           archive="dist/CLIProxyAPI-CPA-${version}.tar.gz"
-          git archive --format=tar.gz --prefix="CLIProxyAPI-CPA-${version}/" "$version" > "$archive"
+          scripts/package-public-release.sh "$version" "$archive"
           cp release-manifest.json "dist/CLIProxyAPI-CPA-${version}.manifest.json"
           cp release-catalog.json "dist/CLIProxyAPI-CPA-${version}.catalog.json"
           cp RELEASES_CN.md "dist/CLIProxyAPI-CPA-${version}.RELEASES_CN.md"
@@ -236,8 +256,22 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          release_flags=()
+          if [[ "$GITHUB_REF_NAME" == *-beta.* ]]; then
+            release_flags=(--prerelease --latest=false)
+          fi
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            if [[ "${#release_flags[@]}" -gt 0 ]]; then
+              [[ "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" == true ]] || {
+                echo "Beta release is already public; published assets are immutable."
+                exit 1
+              }
+              gh release edit "$GITHUB_REF_NAME" "${release_flags[@]}"
+            fi
             gh release upload "$GITHUB_REF_NAME" dist/* --clobber
           else
-            gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes
+            if [[ "$GITHUB_REF_NAME" == *-beta.* ]]; then
+              release_flags+=(--draft)
+            fi
+            gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes "${release_flags[@]}"
           fi

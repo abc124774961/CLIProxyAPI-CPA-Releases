@@ -449,6 +449,19 @@ agent_name="$(value_or CPAMP_AGENT_CONTAINER_NAME cpamp-agent)"
 network_name="$(value_or CPAMP_NETWORK_NAME cpamp-cpa_default)"
 cpa_data_dir="$(value_or CPA_DATA_DIR ./data/cpa)"
 cpamp_data_dir="$(value_or CPAMP_DATA_DIR ./data/manager)"
+panel_dir="$(value_or CPAMP_PANEL_DIR ./panel)"
+if [[ "$panel_dir" != /* ]]; then panel_dir="$(dirname "$compose_file")/${panel_dir#./}"; fi
+if [ "$dry_run" != "1" ] && [ ! -s "$panel_dir/management.html" ]; then
+  fail "CPAMP_PANEL_DIR must contain this release's management.html: $panel_dir"
+fi
+case "$cpamp_image" in
+  *-beta.*)
+    if [ "$dry_run" != "1" ] && [ -s "$panel_dir/management.html" ] &&
+       ! LC_ALL=C grep -Fq -- "${cpamp_image##*:}" "$panel_dir/management.html"; then
+      fail "Bundled panel version must match the selected beta CPAMP image"
+    fi
+    ;;
+esac
 stack_root="$(value_or CPAMP_STACK_ROOT .)"
 backup_root="$(value_or CPAMP_BACKUP_ROOT ./backups)"
 admin_key_file="$(value_or CPAMP_ADMIN_KEY_FILE ./secrets/cpamp-admin-key)"

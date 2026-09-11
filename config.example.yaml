@@ -23,14 +23,12 @@ remote-management:
   secret-key: ""
 
   # Disable the bundled management control panel asset download and HTTP route when true.
-  disable-control-panel: false
-
-  # Disable automatic periodic background updates of the management panel from GitHub (default: false).
-  # When enabled, the panel is only downloaded on first access if missing, and never auto-updated afterward.
-  # disable-auto-update-panel: false
+  disable-control-panel: true
+  # Beta UI is served by the matching CPAMP bundle, not the stable updater.
+  disable-auto-update-panel: true
 
   # GitHub repository for the management control panel. Accepts a repository URL or releases API URL.
-  panel-github-repository: "https://github.com/router-for-me/Cli-Proxy-API-Management-Center"
+  panel-github-repository: "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases"
 
 # CPA storefront authorization is always enforced for API requests.
 # Configure the publisher public key and secrets through deployment environment
@@ -182,6 +180,41 @@ redis-usage-queue-retention-seconds: 60
 # Per-entry proxy-url also supports "direct" or "none" to bypass both the global proxy-url and environment proxies explicitly.
 proxy-url: ""
 
+# Optional unified egress routing. Disabled by default; existing proxies stay unchanged.
+# Native IPs must already be assigned to this host. Both kinds can share a pool.
+# proxy-routing:
+#   enabled: false
+#   nodes:
+#     - id: local-ip-1
+#       name: Native IP 1
+#       kind: native
+#       source-ip: "192.0.2.10"
+#       enabled: true
+#       max-concurrency: 4 # Per account + node; 0 adds no exit concurrency limit.
+#     - id: proxy-1
+#       name: External proxy 1
+#       kind: proxy
+#       proxy-url: "socks5://USER:PASSWORD@HOST:1080"
+#       enabled: true
+#       max-concurrency: 4
+#   pools:
+#     - id: mixed
+#       name: Mixed exits
+#       enabled: true
+#       members:
+#         - node-id: local-ip-1
+#           priority: 10 # Higher first, then weighted occupancy within a tier.
+#           weight: 1
+#         - node-id: proxy-1
+#           priority: 0
+#           weight: 1
+#   global:
+#     mode: replace # inherit, direct, replace, append
+#     pool-ids: [mixed]
+#   groups: {} # Decimal group IDs -> bindings, with priority for precedence.
+#   accounts: {} # Management auth IDs -> bindings. Account quota stays shared.
+# See docs/release-beta-20260911.zh-CN.md for opt-in deployment behavior.
+
 # When true, unprefixed model requests only use credentials without a prefix (except when prefix == model name).
 force-model-prefix: false
 
@@ -283,6 +316,16 @@ routing:
 
 # Codex provider behavior.
 codex:
+  # Observation does not modify requests, accounts, concurrency, or TLS.
+  protocol-compatibility:
+    http-mode: legacy # legacy | observe (also covers compact)
+    websocket-mode: legacy # Independent of HTTP mode.
+    sample-percent: 5 # Explicit 0 disables sampling.
+    retention-seconds: 900 # Process-local records; maximum 3600 seconds.
+    max-body-bytes: 262144 # Larger bodies are skipped, never rejected.
+    # account-modes:
+    #   ACCOUNT_ID:
+    #     websocket-mode: observe
   # When true, and routing.strategy is fill-first, routing.session-affinity is true,
   # or routing.high-cache-mode is true, remap Codex prompt/session identity per
   # selected auth and pin one stable installation fingerprint per account.
@@ -291,6 +334,17 @@ codex:
   # Some superstitious users believe request tracking identifiers can be used
   # as evidence for TOS enforcement bans; this option only satisfies those odd concerns.
   identity-confuse: false
+  # Optional per-account environments. Disabled until explicitly configured.
+  identity-pools:
+    enabled: false
+    fail-open: true
+    profile-binding: stable-hash # Assign profiles after this feature is enabled.
+    # account-profiles:
+    #   ACCOUNT_ID: PROFILE_ID # Empty value explicitly leaves it unassigned.
+    session-mapping: true
+    cache-key-mapping: true
+    diagnostics: true
+    profiles: []
   # Protect selected Codex OAuth auth files before credential selection. Add
   # `codex_cli_only: true` to each Team account that should use this gate.
   client-restriction:
@@ -322,6 +376,8 @@ codex:
   cache-affinity:
     enabled: false
     shadow: true
+    # Optional durable binding state; auth tokens are never written here.
+    # state-file: "auths.state/session-affinity.json"
     # Keep this false to preserve warm-session affinity. When true, credentials
     # in their final five minutes may temporarily receive warm sessions so the
     # bounded expiry-drain concurrency can consume their remaining quota.
@@ -437,6 +493,17 @@ xai:
   # When true, inject the native x_search tool when the request does not declare it.
   # The injected tool is also added to tool_choice.allowed_tools when applicable.
   inject-x-search: false
+
+# Opt-in logical session concurrency. Existing account modes are preserved.
+# Only one CPA process may own a writable session state file at a time.
+session-pool:
+  enabled: false
+  # state-file: "/var/lib/cli-proxy-api/session-pool.state"
+  # owner-id: "cpa-worker-1"
+  global-waiting-business-limit: 1000
+  caller-waiting-business-limit: 20
+  global-waiting-request-limit: 2000
+  queue-payload-bytes: 134217728
 
 # When true, enable authentication for the WebSocket API (/v1/ws).
 ws-auth: true
