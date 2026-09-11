@@ -2,7 +2,7 @@
 
 ## 公开 Beta
 
-本分支配套组合版本 `v7.2.148-cpa.7-beta.1`，CPA CLI 为同名版本，CPAMP Manager 与 Agent 为 `v1.12.10-cpa.1-beta.1`，均支持 `linux/amd64` 与 `linux/arm64`。Beta 通过显式版本安装，不替换以下稳定版记录，也不改变稳定下载入口。安装与验证见 [Beta 说明](docs/release-beta-20260911.zh-CN.md)。
+本分支配套组合版本 `v7.2.148-cpa.7-beta.2`，CPA CLI 为同名版本，CPAMP Manager 与 Agent 为 `v1.12.10-cpa.1-beta.1`，均支持 `linux/amd64` 与 `linux/arm64`。Beta 通过显式版本安装，不替换以下稳定版记录，也不改变稳定下载入口。安装与验证见 [Beta 说明](docs/release-beta-20260911.zh-CN.md)。
 
 CPA CLI 原生二进制使用 CGO、基于 Debian 12 构建，需要 GLIBC 2.36+；较老发行版使用随包 Docker 镜像。CPAMP Manager/Agent 使用 `CGO_ENABLED=0`，保留 Alpine 运行镜像。
 

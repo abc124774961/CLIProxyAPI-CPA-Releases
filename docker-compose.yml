@@ -1,7 +1,7 @@
 services:
   cli-proxy-api:
     # Beta customer deployments use the exact prebuilt component image.
-    image: ${CLI_PROXY_IMAGE:-ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7-beta.1}
+    image: ${CLI_PROXY_IMAGE:-ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7-beta.2}
     pull_policy: ${CLI_PROXY_PULL_POLICY:-always}
     container_name: ${CLI_PROXY_CONTAINER_NAME:-cli-proxy-api}
     environment:

@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -815,6 +816,109 @@ func TestGetPluginSyncExceedsBaseTimeoutAndKeepsBaseClientUsable(t *testing.T) {
 	}
 }
 
+type pluginSyncCancellationObservedConn struct {
+	net.Conn
+	observed   chan struct{}
+	notifyOnce sync.Once
+	closes     atomic.Int32
+}
+
+func (c *pluginSyncCancellationObservedConn) SetDeadline(deadline time.Time) error {
+	errDeadline := c.Conn.SetDeadline(deadline)
+	c.notifyOnce.Do(func() { close(c.observed) })
+	return errDeadline
+}
+
+func (c *pluginSyncCancellationObservedConn) Close() error {
+	c.closes.Add(1)
+	errClose := c.Conn.Close()
+	c.notifyOnce.Do(func() { close(c.observed) })
+	return errClose
+}
+
+func TestPluginSyncCancelableConnCancellationSurvivesDeadlineReset(t *testing.T) {
+	tests := []struct {
+		name  string
+		reset func(net.Conn) error
+	}{
+		{name: "extend read deadline", reset: func(conn net.Conn) error {
+			return conn.SetReadDeadline(time.Now().Add(time.Hour))
+		}},
+		{name: "clear read deadline", reset: func(conn net.Conn) error {
+			return conn.SetReadDeadline(time.Time{})
+		}},
+		{name: "extend write deadline", reset: func(conn net.Conn) error {
+			return conn.SetWriteDeadline(time.Now().Add(time.Hour))
+		}},
+		{name: "clear all deadlines", reset: func(conn net.Conn) error {
+			return conn.SetDeadline(time.Time{})
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, peer := net.Pipe()
+			t.Cleanup(func() { _ = peer.Close() })
+			observed := &pluginSyncCancellationObservedConn{Conn: client, observed: make(chan struct{})}
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			conn := newPluginSyncCancelableConn(ctx, observed)
+			t.Cleanup(func() { _ = conn.Close() })
+			cancel()
+			select {
+			case <-observed.observed:
+			case <-time.After(time.Second):
+				t.Fatal("context cancellation did not interrupt the dedicated connection")
+			}
+			// Force Redis's deadline update to happen after the cancellation action.
+			_ = tt.reset(conn)
+			ioDone := make(chan error, 2)
+			go func() {
+				_, errRead := conn.Read(make([]byte, 1))
+				ioDone <- errRead
+			}()
+			go func() {
+				_, errWrite := conn.Write([]byte("x"))
+				ioDone <- errWrite
+			}()
+			for range 2 {
+				select {
+				case errIO := <-ioDone:
+					if errIO == nil {
+						t.Fatal("I/O after cancellation returned no error")
+					}
+				case <-time.After(time.Second):
+					t.Fatal("deadline reset revived a cancelled plugin sync connection")
+				}
+			}
+			if closes := observed.closes.Load(); closes != 1 {
+				t.Fatalf("underlying Close calls = %d, want 1", closes)
+			}
+		})
+	}
+}
+
+func TestPluginSyncCancelableConnConcurrentCloseIsIdempotent(t *testing.T) {
+	client, peer := net.Pipe()
+	defer func() { _ = peer.Close() }()
+	observed := &pluginSyncCancellationObservedConn{Conn: client, observed: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	conn := newPluginSyncCancelableConn(ctx, observed)
+	var callers sync.WaitGroup
+	for range 16 {
+		callers.Add(1)
+		go func() {
+			defer callers.Done()
+			_ = conn.Close()
+		}()
+	}
+	cancel()
+	callers.Wait()
+	if closes := observed.closes.Load(); closes != 1 {
+		t.Fatalf("underlying Close calls = %d, want 1", closes)
+	}
+}
+
 func TestGetPluginSyncCancellationInterruptsRead(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
@@ -824,9 +928,13 @@ func TestGetPluginSyncCancellationInterruptsRead(t *testing.T) {
 			startOnce.Do(func() { close(started) })
 			<-release
 		}
+		if len(args) >= 2 && args[1] == redisKeyPluginTasks {
+			return "$2\r\n[]\r\n"
+		}
 		return "-ERR cancelled\r\n"
 	})
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go func() {
 		<-started
 		cancel()
@@ -844,6 +952,9 @@ func TestGetPluginSyncCancellationInterruptsRead(t *testing.T) {
 	}
 	if count := commands.CountKey(redisKeyPluginSync); count != 1 {
 		t.Fatalf("plugin sync command count = %d, want 1", count)
+	}
+	if _, errTasks := client.GetPluginTasks(context.Background()); errTasks != nil {
+		t.Fatalf("base client after plugin sync cancellation error = %v", errTasks)
 	}
 }
 

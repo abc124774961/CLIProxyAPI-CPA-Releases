@@ -1609,8 +1609,9 @@ func pluginSyncDialer(options *redis.Options) func(context.Context, string, stri
 
 type pluginSyncCancelableConn struct {
 	net.Conn
-	done chan struct{}
-	once sync.Once
+	done     chan struct{}
+	once     sync.Once
+	closeErr error
 }
 
 func newPluginSyncCancelableConn(ctx context.Context, conn net.Conn) net.Conn {
@@ -1618,9 +1619,9 @@ func newPluginSyncCancelableConn(ctx context.Context, conn net.Conn) net.Conn {
 	go func() {
 		select {
 		case <-ctx.Done():
-			if errDeadline := conn.SetDeadline(time.Now()); errDeadline != nil {
-				_ = conn.Close()
-			}
+			// This connection belongs only to this command. A deadline can be
+			// overwritten by Redis immediately after cancellation; closure cannot.
+			_ = wrapped.Close()
 		case <-wrapped.done:
 		}
 	}()
@@ -1631,8 +1632,11 @@ func (c *pluginSyncCancelableConn) Close() error {
 	if c == nil || c.Conn == nil {
 		return net.ErrClosed
 	}
-	c.once.Do(func() { close(c.done) })
-	return c.Conn.Close()
+	c.once.Do(func() {
+		close(c.done)
+		c.closeErr = c.Conn.Close()
+	})
+	return c.closeErr
 }
 
 func pluginSyncUnsupportedResponse(raw []byte) (string, bool) {

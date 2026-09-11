@@ -20,7 +20,7 @@ import unittest
 sys.dont_write_bytecode = True
 
 ROOT = Path(sys.argv.pop())
-BETA = "v7.2.148-cpa.7-beta.1"
+BETA = "v7.2.148-cpa.7-beta.2"
 STABLE = "v7.2.148-cpa.6"
 
 
@@ -224,7 +224,7 @@ elif args[0] == "inspect" and "--raw" in args:
             sys.exit(0)
     sys.stdout.write((root / "raw.json").read_text())
 else:
-    version = "v1.12.10-cpa.1-beta.1" if "cpa-manager-plus:" in args[-1] or "cpamp.tar" in args[-1] else "v7.2.148-cpa.7-beta.1"
+    version = "v1.12.10-cpa.1-beta.1" if "cpa-manager-plus:" in args[-1] or "cpamp.tar" in args[-1] else "v7.2.148-cpa.7-beta.2"
     print(json.dumps({"Labels": {"org.opencontainers.image.source": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases", "org.opencontainers.image.revision": "c" * 40, "org.opencontainers.image.version": version}}))
 '''
             for name in ("gh", "skopeo"):

@@ -1,6 +1,6 @@
 # CPA 全套公开 Beta
 
-本次组合版本为 `v7.2.148-cpa.7-beta.1`，CPA CLI 使用同名组件版本，CPAMP Manager 与 Agent 使用 `v1.12.10-cpa.1-beta.1`。两个组件均提供 `linux/amd64`、`linux/arm64` 二进制与镜像归档。
+本次组合版本为 `v7.2.148-cpa.7-beta.2`，CPA CLI 使用同名组件版本，CPAMP Manager 与 Agent 使用 `v1.12.10-cpa.1-beta.1`。两个组件均提供 `linux/amd64`、`linux/arm64` 二进制与镜像归档。
 
 ## 发布范围
 
@@ -8,6 +8,7 @@
 - 账号独立身份环境、请求与会话并发、会话池、统一出口池及原生 IP 出口、分组与账号出口绑定、按 IP 展示近期请求。
 - 固定版本安装器、部署模板、组件及组合清单、统一 SHA-256 校验文件。
 - CPAMP 统计成功标记在原始记录与聚合记录中保持一致，包含 SQLite/MySQL 迁移修复。
+- CPA 插件同步取消时关闭专用连接，避免读取截止时间被覆盖后继续等待；修正 WebSocket 生命周期测试的预热连接隔离。
 
 本版本标记为 GitHub Pre-release。既有稳定版、默认稳定下载入口和线上池子均保持原状；安装 Beta 需要显式指定版本。组合部署包只包含客户部署文件，不包含本次组件的私有实现源码，安装时使用预构建包或固定镜像。
 
@@ -16,7 +17,7 @@
 CPA CLI 原生二进制使用 `CGO_ENABLED=1`、Debian 12 构建，宿主机需要 GLIBC 2.36 或更新版本；较老发行版使用随包的 Debian Docker 镜像。CPAMP Manager 与 Agent 使用 `CGO_ENABLED=0`，保留 Alpine 运行镜像，不要求宿主 GLIBC。
 
 ```bash
-RELEASE_TAG=v7.2.148-cpa.7-beta.1
+RELEASE_TAG=v7.2.148-cpa.7-beta.2
 curl -fL "https://raw.githubusercontent.com/abc124774961/CLIProxyAPI-CPA-Releases/${RELEASE_TAG}/install-cpamp-release.sh" -o install-cpamp-release.sh
 bash install-cpamp-release.sh --version "$RELEASE_TAG" --dir /opt/cpa-beta
 cd /opt/cpa-beta/deploy/cpamp-pool-server

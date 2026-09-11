@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "release_tag": "v7.2.148-cpa.7-beta.1",
+  "release_tag": "v7.2.148-cpa.7-beta.2",
   "entries": [
     {
-      "image": "ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7-beta.1",
-      "archive": "cpa-beta.oci.tar",
-      "sha256": "0e54c5ff6ee20ff356f20f54fda04accd835cba34cc975b33652ec19919e6949",
-      "image_digest": "sha256:7ab5b3e9c4f31e136163af49e5b2b0403567798928e4ec899239e121fe5ce8e7",
-      "source_commit": "0d58282b116399792d896e1eecdcb0ea2624f3c7",
+      "image": "ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7-beta.2",
+      "archive": "cpa-beta2.oci.tar",
+      "sha256": "edb82c4063ae9bcf8df9bd128b3fed5b7fb83e22a23418631b6babdf9e4abd37",
+      "image_digest": "sha256:7c6681b0b5d29400995be45418344bac9a62983f0b615a3bb302625c5971fb36",
+      "source_commit": "04fb8f942d25d01242afd8832f4a7c1bbb4b2cb2",
       "platform_digests": {
-        "linux/amd64": "sha256:42b2a589f11954c9b8d7aa3666f208c3ca3f9d01cf3c27e261b5be605f08fa73",
-        "linux/arm64": "sha256:bcc9df2a1d7abfea1a0711227aa394818a3d548216fbd3c8f42529b0337a0bea"
+        "linux/amd64": "sha256:7657b8262355bf204a2e8fd3f71788d97dc20f3a4c8a5e394bdf45f1949d2767",
+        "linux/arm64": "sha256:286fe90e3f771ce77e9f6dbe85967af0a4b8a0dccfd2e044233c7f4abd8171b9"
       }
     },
     {

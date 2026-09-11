@@ -2554,6 +2554,7 @@ func TestCodexWebsocketNonstreamLifecycleBindFailureDetachesConnection(t *testin
 			cliproxyexecutor.ExecutionSessionMetadataKey: "nonstream-bind-failed",
 		},
 	}
+	defer exec.CloseExecutionSession(cliproxyauth.CloseAllExecutionSessionsID)
 	if _, errExecute := exec.Execute(context.Background(), auth, req, opts); errExecute == nil {
 		t.Fatal("Execute() error = nil, want lifecycle bind failure")
 	}
@@ -2570,7 +2571,8 @@ func TestCodexWebsocketNonstreamLifecycleBindFailureDetachesConnection(t *testin
 		t.Fatal("nonstream lifecycle bind failure left the closed connection attached to the session")
 	}
 
-	opts.ExecutionLifecycle = nil
+	// Keep this lifecycle test independent of asynchronous standby prewarming.
+	opts.ExecutionLifecycle = newTerminalFailureLifecycle()
 	if _, errExecute := exec.Execute(context.Background(), auth, req, opts); errExecute != nil {
 		t.Fatalf("second Execute() error = %v", errExecute)
 	}
