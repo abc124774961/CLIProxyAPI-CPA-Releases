@@ -276,7 +276,8 @@ func TestWebsocketRetryBindFailureClearsActiveSessionState(t *testing.T) {
 				t.Fatal("retry bind failure left the old active websocket state")
 			}
 
-			opts.ExecutionLifecycle = nil
+			// Keep this retry fixture isolated from unrelated parallel standby prewarming.
+			opts.ExecutionLifecycle = &trackedWebsocketLifecycle{}
 			if errRun := run(opts); errRun != nil {
 				t.Fatalf("second request error = %v", errRun)
 			}
