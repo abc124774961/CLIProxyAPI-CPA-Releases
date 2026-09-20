@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "repository": "abc124774961/CLIProxyAPI-CPA-Releases",
-  "version": "v7.2.148-cpa.7",
+  "version": "v7.2.148-cpa.8",
   "license": {
     "provider": "shop666",
     "product_code": "CPA",
@@ -16,29 +16,29 @@
   "components": {
     "cpa_cli": {
       "display_name": "CLIProxyAPI CPA CLI",
-      "version": "v7.2.148-cpa.7",
-      "tag": "v7.2.148-cpa.7",
+      "version": "v7.2.148-cpa.8",
+      "tag": "v7.2.148-cpa.8",
       "source_repository": "https://github.com/abc124774961/CLIProxyAPI-Pro",
-      "release_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.7",
-      "image": "ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7",
-      "image_digest": "sha256:9b4dbbced1abe528c2a3f4b78ef60f892ac7de005a5b4504d41202d1bf7be0f9",
+      "release_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.8",
+      "image": "ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.8",
+      "image_digest": "sha256:62753859d455969e90082efc70da09ce1fcd3e6601fed390e3d5e9b8f04d1b02",
       "platforms": [
         "linux/amd64",
         "linux/arm64"
       ],
-      "archive_checksums_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/download/v7.2.148-cpa.7/checksums.txt",
+      "archive_checksums_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/download/v7.2.148-cpa.8/checksums.txt",
       "platform_digests": {
-        "linux/amd64": "sha256:91c5a4f36d9ab04209cc3bbdaf359533c45d1dc1056d14fa426962f78024be6c",
-        "linux/arm64": "sha256:ae52006c1077bb38328c453e516d5250cecc9233da5f5189a0a1519965d20cfb"
+        "linux/amd64": "sha256:4171969a8277c2b79d9e023aa845c3d1684150a47a4a5c1628555e4be2179699",
+        "linux/arm64": "sha256:bd3de09fb0d6706a8713612a0e72f9e7b0c8acbb322f5f5f2277a8853d229e40"
       },
-      "release_tag": "v7.2.148-cpa.7",
+      "release_tag": "v7.2.148-cpa.8",
       "release_repository": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases",
-      "source_commit": "67592496fb4feaf421d17b04c41e24f1c7c8a009",
-      "artifact_manifest": "CPA-CLI-v7.2.148-cpa.7.manifest.json",
+      "source_commit": "b32292a1e106b3b81e93a66aec6ea6f14bd2f852",
+      "artifact_manifest": "CPA-CLI-v7.2.148-cpa.8.manifest.json",
       "artifact_checksums": "checksums.txt",
       "artifacts": {
-        "linux/amd64": "CPA-CLI-v7.2.148-cpa.7-linux-amd64.tar.gz",
-        "linux/arm64": "CPA-CLI-v7.2.148-cpa.7-linux-arm64.tar.gz"
+        "linux/amd64": "CPA-CLI-v7.2.148-cpa.8-linux-amd64.tar.gz",
+        "linux/arm64": "CPA-CLI-v7.2.148-cpa.8-linux-arm64.tar.gz"
       },
       "binary": "bin/CLIProxyAPI",
       "image_archive": "image/cli-proxy-api-cpa.tar",
@@ -53,7 +53,7 @@
       "source_repository": "https://github.com/abc124774961/CPA-Manager-Pro",
       "source_commit": "9c6f5b98c9e76094c6376dfd85ce1123e090c562",
       "release_repository": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases",
-      "release_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.7",
+      "release_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.8",
       "image": "ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1",
       "image_digest": "sha256:35997c3647577ffb2a639d76351d524b7e6dc1932670f84ab9f42cc9abbafd69",
       "platforms": [
@@ -76,8 +76,8 @@
         "linux/amd64": "sha256:14df9f77bf1a662bf502dd7f50828c44b9fa415065c0be6b0c511cdd8df19de7",
         "linux/arm64": "sha256:f574bb50625bfb2ac0353eb2fc506937cd39c3420bba5521299bea5b80ba3e02"
       },
-      "release_tag": "v7.2.148-cpa.7",
-      "archive_checksums_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/download/v7.2.148-cpa.7/checksums.txt"
+      "release_tag": "v7.2.148-cpa.8",
+      "archive_checksums_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/download/v7.2.148-cpa.8/checksums.txt"
     }
   },
   "deployment": {
@@ -93,15 +93,15 @@
     ],
     "template_dir": "deploy/cpamp-pool-server",
     "readme": "deploy/cpamp-pool-server/README.md",
-    "public_compose_file": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/blob/v7.2.148-cpa.7/deploy/cpamp-pool-server/compose.yml",
+    "public_compose_file": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/blob/v7.2.148-cpa.8/deploy/cpamp-pool-server/compose.yml",
     "references": {
       "cli_source": "https://github.com/router-for-me/CLIProxyAPI",
       "cpamp_source": "https://github.com/abc124774961/CPA-Manager-Pro",
       "cpamp_full_template": "https://github.com/abc124774961/CPA-Manager-Pro/tree/main/deploy/pool-server",
       "user_manual_zh_cn": "https://help.router-for.me/cn/"
     },
-    "release_tag": "v7.2.148-cpa.7",
-    "public_template": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/tree/v7.2.148-cpa.7/deploy/cpamp-pool-server"
+    "release_tag": "v7.2.148-cpa.8",
+    "public_template": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/tree/v7.2.148-cpa.8/deploy/cpamp-pool-server"
   },
   "runtime": {
     "compose_file": "docker-compose.yml",
@@ -112,17 +112,17 @@
       "linux/amd64",
       "linux/arm64"
     ],
-    "release_tag": "v7.2.148-cpa.7"
+    "release_tag": "v7.2.148-cpa.8"
   },
-  "release_tag": "v7.2.148-cpa.7",
+  "release_tag": "v7.2.148-cpa.8",
   "artifacts": {
     "checksums": "checksums.txt",
     "panel": "management.html",
-    "cpa_cli_manifest": "CPA-CLI-v7.2.148-cpa.7.manifest.json",
+    "cpa_cli_manifest": "CPA-CLI-v7.2.148-cpa.8.manifest.json",
     "cpamp_manifest": "CPAMP-v1.12.10-cpa.1.manifest.json",
     "cpa_cli": {
-      "linux/amd64": "CPA-CLI-v7.2.148-cpa.7-linux-amd64.tar.gz",
-      "linux/arm64": "CPA-CLI-v7.2.148-cpa.7-linux-arm64.tar.gz"
+      "linux/amd64": "CPA-CLI-v7.2.148-cpa.8-linux-amd64.tar.gz",
+      "linux/arm64": "CPA-CLI-v7.2.148-cpa.8-linux-arm64.tar.gz"
     },
     "cpamp": {
       "linux/amd64": "CPAMP-v1.12.10-cpa.1-linux-amd64.tar.gz",
@@ -131,5 +131,5 @@
   },
   "channel": "stable",
   "prerelease": false,
-  "stable_release": "v7.2.148-cpa.7"
+  "stable_release": "v7.2.148-cpa.8"
 }

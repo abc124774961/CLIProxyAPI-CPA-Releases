@@ -11,12 +11,12 @@
 
 本次为正式发布，使用下列固定版本安装。升级前保留配置、账号、数据库及运行状态目录，并采用配套面板。
 
-统一公开发布 tag：`v7.2.148-cpa.7`。这是客户获取两项组件、部署模板和安装包的组合锚点；组件版本和镜像 tag 仍按已验证记录保持不变。 清单中的顶层 `version`/`release_tag` 表示组合发布，组件对象中的 `version`/`tag`/镜像 tag 表示实际运行产物。
+统一公开发布 tag：`v7.2.148-cpa.8`。这是客户获取两项组件、部署模板和安装包的组合锚点；组件版本和镜像 tag 仍按已验证记录保持不变。 清单中的顶层 `version`/`release_tag` 表示组合发布，组件对象中的 `version`/`tag`/镜像 tag 表示实际运行产物。
 
 | 组件 | 组件版本 / 镜像 tag | 镜像 | 组合发布 tag |
 | --- | --- | --- | --- |
-| CPA CLI | `v7.2.148-cpa.7` | `ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7` | `v7.2.148-cpa.7` |
-| CPAMP（Manager + Agent） | `v1.12.10-cpa.1` | `ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1` | `v7.2.148-cpa.7` |
+| CPA CLI | `v7.2.148-cpa.8` | `ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.8` | `v7.2.148-cpa.8` |
+| CPAMP（Manager + Agent） | `v1.12.10-cpa.1` | `ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1` | `v7.2.148-cpa.8` |
 
 两项均支持 `linux/amd64` 与 `linux/arm64`。平台 digest、校验和及源码提交见
 [release-catalog.json](../release-catalog.json) 和 [release-manifest.json](../release-manifest.json)。
@@ -30,7 +30,7 @@
 ## 2. 部署 CPA CLI
 
 ```bash
-git clone --branch v7.2.148-cpa.7 --depth 1 \
+git clone --branch v7.2.148-cpa.8 --depth 1 \
   https://github.com/abc124774961/CLIProxyAPI-CPA-Releases.git /opt/cpa-release
 cd /opt/cpa-release
 cp config.example.yaml config.yaml
@@ -67,7 +67,7 @@ docker compose --env-file .env -f docker-compose.yml up -d cli-proxy-api
 curl -fsS http://127.0.0.1:${CLI_PROXY_HOST_PORT:-8317}/healthz
 ```
 
-需要使用预构建 CPA CLI 包时，运行 [`install-cpa-cli-release.sh`](../install-cpa-cli-release.sh) 并显式传入 `--version v7.2.148-cpa.7`，按主机架构下载清单登记的二进制和镜像归档。本版本使用预构建产物，旧源码编译安装器保留其原有版本。
+需要使用预构建 CPA CLI 包时，运行 [`install-cpa-cli-release.sh`](../install-cpa-cli-release.sh) 并显式传入 `--version v7.2.148-cpa.8`，按主机架构下载清单登记的二进制和镜像归档。本版本使用预构建产物，旧源码编译安装器保留其原有版本。
 
 ## 3. 部署 CPAMP
 
@@ -75,7 +75,7 @@ curl -fsS http://127.0.0.1:${CLI_PROXY_HOST_PORT:-8317}/healthz
 Manager、Agent、固定镜像归档、Compose 文件和全部部署脚本，不会访问 `CPA-Manager-Pro` 源码仓库：
 
 ```bash
-RELEASE_TAG=v7.2.148-cpa.7
+RELEASE_TAG=v7.2.148-cpa.8
 curl -fL \
   "https://raw.githubusercontent.com/abc124774961/CLIProxyAPI-CPA-Releases/${RELEASE_TAG}/install-cpamp-release.sh" \
   -o install-cpamp-release.sh
@@ -96,7 +96,7 @@ cd /opt/cpa-pool
 cp .env.example .env
 ```
 
-确认 `CPA_IMAGE` 和 `CPAMP_IMAGE` 与上表完全一致（CPA 镜像 tag 是 `v7.2.148-cpa.7`，CPAMP 镜像 tag 是 `v1.12.10-cpa.1`，不要把组合发布 tag 当成镜像 tag）。Manager 与 Agent 必须使用同一 CPAMP 镜像 tag。
+确认 `CPA_IMAGE` 和 `CPAMP_IMAGE` 与上表完全一致（CPA 镜像 tag 是 `v7.2.148-cpa.8`，CPAMP 镜像 tag 是 `v1.12.10-cpa.1`，不要把组合发布 tag 当成镜像 tag）。Manager 与 Agent 必须使用同一 CPAMP 镜像 tag。
 填好商城客户端 ID 后执行；启用 Secret 校验时，先将对应 Secret 写入下列文件：
 
 ```bash
@@ -131,10 +131,12 @@ scripts/check-license-runtime.sh \
 
 ## 5. 升级与回滚
 
-1. 先备份 `data/license`、CPA 配置、`auths`、Manager 数据和 `secrets/`。
-2. 只修改到已验证的 CPA/CPAMP tag 或 digest，先 `pull` 再 `up -d`。
-3. 升级后重复健康检查和授权检查。
-4. 失败时恢复上一组 tag/digest；不要删除授权目录或执行 `down -v`。
+1. 先拉取已验证的 CPA/CPAMP tag 或 digest，然后正常停止 Core，确认进程退出。
+2. 备份 `data/license`、CPA 配置、`auths`、Manager 数据、`secrets/` 和完整运行状态目录。票据数据库、同目录 `.revocations` 撤销日志及存在时的 `.recovery-blocked` 文件应从停止后的同一时间点一起备份；数据库使用 WAL 时保留完整目录，不从运行实例单独复制 SQLite 主文件。
+3. 替换固定版本并执行 `up -d`，重复健康检查和授权检查，同时查看票据恢复数量与原到期时间。
+4. 失败时恢复上一组 tag/digest，保留当前运行状态。若确需恢复数据，先停止 Core，再恢复相互一致的数据库和附属文件；不要混用不同时间点的数据库与撤销日志，也不要删除授权目录或执行 `down -v`。
+
+首次从旧版升级时，正常退出旧进程是票据迁移前提；旧版异常退出前尚未落盘的撤销记录不会出现在旧数据库中。本版保留历史票据原到期时间，默认 1 小时有效期适用于新采集票据；续采不会给旧票延期。
 
 ## 参考入口
 

@@ -11,14 +11,14 @@
 - [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)
 - [CPA-Manager-Pro](https://github.com/abc124774961/CPA-Manager-Pro)
 
-当前组合发布 tag 为 `v7.2.148-cpa.7`；CPA CLI 组件为 `v7.2.148-cpa.7`，CPAMP 组件为 `v1.12.10-cpa.1`。
+当前组合发布 tag 为 `v7.2.148-cpa.8`；CPA CLI 组件为 `v7.2.148-cpa.8`，CPAMP 组件为 `v1.12.10-cpa.1`。
 
 CPA CLI 原生二进制需要 GLIBC 2.36+（CGO、Debian 12 构建），较老系统使用随包 Docker 镜像。CPAMP Manager/Agent 使用 `CGO_ENABLED=0`，保留 Alpine 运行镜像。
 
 发布前请运行：
 
 ```bash
-scripts/verify-release-bundle.sh v7.2.148-cpa.7
+scripts/verify-release-bundle.sh v7.2.148-cpa.8
 bash scripts/release-beta_test.sh
 ```
 

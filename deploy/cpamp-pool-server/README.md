@@ -14,7 +14,7 @@
 访问 `CPA-Manager-Pro` 源码：
 
 ```bash
-RELEASE_TAG=v7.2.148-cpa.7
+RELEASE_TAG=v7.2.148-cpa.8
 curl -fL \
   "https://raw.githubusercontent.com/abc124774961/CLIProxyAPI-CPA-Releases/${RELEASE_TAG}/install-cpamp-release.sh" \
   -o install-cpamp-release.sh
@@ -81,10 +81,10 @@ docker compose --env-file .env -f compose.yml <command>
 
 ## 必要配置
 
-公开组合发布 tag 为 `v7.2.148-cpa.7`；`.env` 中至少确认以下组件镜像值与当前发布目录一致（组合 tag 不等于镜像 tag）：清单字段 `release_tag` 只用于定位公开 Release，不要写入 `CPA_IMAGE` 或 `CPAMP_IMAGE`。
+公开组合发布 tag 为 `v7.2.148-cpa.8`；`.env` 中至少确认以下组件镜像值与当前发布目录一致（组合 tag 不等于镜像 tag）：清单字段 `release_tag` 只用于定位公开 Release，不要写入 `CPA_IMAGE` 或 `CPAMP_IMAGE`。
 
 ```dotenv
-CPA_IMAGE=ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7
+CPA_IMAGE=ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.8
 CPAMP_IMAGE=ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1
 CPA_LICENSE_API_BASE_URL=https://p.666ttt.net/api/storefront
 CPA_LICENSE_CLIENT_ID=商城签发的客户端ID
@@ -102,7 +102,7 @@ CPA 与 Agent 使用 host network，`CPA_PORT`、`CPAMP_PORT`、`CPAMP_AGENT_POR
 客户端 Secret 默认可选；仅当 `CPA_LICENSE_REQUIRE_CLIENT_SECRET=true` 且商城端同步启用
 `STOREFRONT_REQUIRE_LICENSE_CLIENT_SECRET=true` 时才强制校验。
 
-升级前先备份 `data/cpa`、`data/manager`、`secrets/`，只修改到已验证的固定 tag/digest，先执行 `./preflight.sh` 和拉取，再启动。不要执行 `down -v`。脚本默认不覆盖已有 CPA 配置或授权租约。
+升级前先执行 `./preflight.sh` 和拉取，正常停止 Core 后备份 `data/cpa`、`data/manager`、`secrets/` 及实际运行状态目录，再切换到已验证的固定 tag/digest。票据数据库、同目录 `.revocations` 撤销日志及存在时的 `.recovery-blocked` 文件一起备份；回滚涉及数据恢复时使用同一时间点的一致副本。不要执行 `down -v`。脚本默认不覆盖已有 CPA 配置或授权租约，详细步骤见 [升级与回滚](../../docs/deployment-cpa-cpamp.zh-CN.md#5-升级与回滚)。
 
 ## 参考
 

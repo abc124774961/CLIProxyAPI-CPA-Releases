@@ -21,7 +21,7 @@ sys.dont_write_bytecode = True
 
 ROOT = Path(sys.argv.pop())
 BETA = "v7.2.148-cpa.7-beta.2"
-STABLE = "v7.2.148-cpa.7"
+STABLE = "v7.2.148-cpa.8"
 SOURCE_STABLE = "v7.2.148-cpa.6"
 
 

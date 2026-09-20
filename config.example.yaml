@@ -322,7 +322,7 @@ codex:
   turn-state:
     enabled: false
     observe-only: true
-    ttl: "15m"
+    ttl: "1h"
     max-entries: 10000
     max-state-bytes: 2048
     diagnostics: false
@@ -372,6 +372,8 @@ codex:
       account-probe-interval: "3s"
       max-candidates: 1000
       probe-interval: "60s"
+      # Refresh ten minutes before expiry; short lifetimes wait at least half
+      # their lifetime, and the shared capacity calendar can spread renewals.
       candidate-ttl: "1h"
       jitter: "10s"
       max-backoff: "15m"
