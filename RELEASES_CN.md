@@ -1,53 +1,40 @@
 # CPA 发布版本目录
 
-## 公开 Beta
+## 当前正式版
 
-本分支配套组合版本 `v7.2.148-cpa.7-beta.2`，CPA CLI 为同名版本，CPAMP Manager 与 Agent 为 `v1.12.10-cpa.1-beta.1`，均支持 `linux/amd64` 与 `linux/arm64`。Beta 通过显式版本安装，不替换以下稳定版记录，也不改变稳定下载入口。安装与验证见 [Beta 说明](docs/release-beta-20260911.zh-CN.md)。
+组合版本 `v7.2.148-cpa.7`：CPA CLI `v7.2.148-cpa.7`，CPAMP Manager 与 Agent `v1.12.10-cpa.1`。两组件均提供 `linux/amd64`、`linux/arm64` 预构建二进制和离线镜像包，包含配套 `management.html`、安装器、部署模板和 SHA-256 校验文件。
 
-CPA CLI 原生二进制使用 CGO、基于 Debian 12 构建，需要 GLIBC 2.36+；较老发行版使用随包 Docker 镜像。CPAMP Manager/Agent 使用 `CGO_ENABLED=0`，保留 Alpine 运行镜像。
+## 本次变化
 
-以下内容为已发布稳定版的历史记录。
+- 票据后台维护默认每账号 3 路并发，全局上限 100；各路完成后独立间隔 3 秒继续，不被同账号慢请求阻塞。
+- 采集混合使用账号已分配的固定出口与采集代理池，遵守节点容量及明确的上游退避。
+- 每账号每模型目标至少 3 张票据，1 小时有效期；配置更新、IP 切换与优雅重启保留仍有效的库存和原到期时间。
+- 票据管理、账号后台动作与主可用状态分开展示，提供库存、请求和提示词统计。
+- 包含当前版本的请求兼容性、会话、账号导入及票据持久化修复。
+- MySQL 升级新增请求分类字段采用即时加列，保留历史数据，避免复制大表阻塞启动。
+- 保留商城签名授权和既有的本地网络故障宽限上限。
 
-本页只记录已发布的 CPA CLI、CPAMP 版本和部署入口。普通用户只需本公开仓库中的发布镜像和模板，
-不需要访问私有源码仓库。完整参数与功能说明引用独立源码仓库；部署请固定版本 tag 或镜像 digest，
-不使用 `latest`。
+并发上限不保证上游吞吐或收录成功率。票据长度和接口成功均不代表模型能力结论；现有 Astra low 实测仍出现返回模型与请求模型不一致，尚未确认解决。
 
-## 当前验证组合
+## 安装
 
-统一组合发布 tag：`v7.2.148-cpa.6`。该 tag 是 CPA CLI 与 CPAMP 客户部署包的统一配套锚点。
+```bash
+RELEASE_TAG=v7.2.148-cpa.7
+curl -fL "https://raw.githubusercontent.com/abc124774961/CLIProxyAPI-CPA-Releases/${RELEASE_TAG}/install-cpamp-release.sh" -o install-cpamp-release.sh
+bash install-cpamp-release.sh --version "$RELEASE_TAG" --dir /opt/cpa
+```
 
-| 组件 | 组件版本/tag | 镜像 | 组合发布 tag | 架构 |
-| --- | --- | --- | --- | --- |
-| CPA CLI | `v7.2.148-cpa.4` | `ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.4` | `v7.2.148-cpa.6` | `linux/amd64`、`linux/arm64` |
-| CPAMP（Manager + Agent） | `v1.12.8-cpa.2` | `ghcr.io/abc124774961/cpa-manager-plus:v1.12.8-cpa.2` | `v7.2.148-cpa.6` | `linux/amd64`、`linux/arm64` |
+进入包内 `deploy/cpamp-pool-server`，按 [部署指南](docs/deployment-cpa-cpamp.zh-CN.md) 填写配置和商城授权后运行 `bootstrap.sh`。单独安装 Core 使用同版本的 `install-cpa-cli-release.sh`。旧 `install-cpa-release.sh` 继续对应其原有源码版本。
 
-对应镜像 manifest digest、平台 digest、源码提交和校验文件见 [release-catalog.json](release-catalog.json) 与
-[release-manifest.json](release-manifest.json)。CPAMP 镜像同时包含 `cpa-manager-plus` 和 `cpamp-agent`。
+Core 原生二进制基于 Debian 12 构建，需要 GLIBC 2.36+；其他发行版可使用随包 Docker 镜像。Manager 和 Agent 使用静态 Go 构建。升级保留原数据挂载，并同步更新配套面板。
 
-## 已发布 CPA CLI
+精确源码提交、镜像及平台 digest 见 [release-manifest.json](release-manifest.json)；下载资产以 Release 中的 `checksums.txt` 校验。部署不需要访问私有源码仓库。
 
-| 组件版本 | 组合发布 tag | 状态 | 发布页 |
-| --- | --- | --- | --- |
-| `v7.2.148-cpa.4` | `v7.2.148-cpa.6` | 当前 | [Release](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.6) |
-| `v7.2.148-cpa.4` | `v7.2.148-cpa.5` | 上一版本 | [Release](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.5) |
-| `v7.2.148-cpa.3` | `v7.2.148-cpa.4` | 上一版本 | [Release](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.4) |
-| `v7.2.148-cpa.2` | 上上版本 | [Release](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.2) |
-| `v7.2.148-cpa.1` | 早期版本 | [Tag](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/tree/v7.2.148-cpa.1) |
+## 历史版本
 
-## 已发布 CPAMP
+| 组合版本 | 状态 |
+| --- | --- |
+| [v7.2.148-cpa.7-beta.2](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.7-beta.2) | 公开 Beta |
+| [v7.2.148-cpa.6](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.6) | 上一正式版 |
 
-| 组件版本 | 组合发布 tag | 状态 | 发布页 |
-| --- | --- | --- | --- |
-| `v1.12.8-cpa.2` | `v7.2.148-cpa.6` | 当前 | [Release](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.6) |
-| `v1.12.8-cpa.2` | `v7.2.148-cpa.5` | 上一版本 | [Release](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.5) |
-| `v1.12.8-cpa.1` | `v7.2.148-cpa.4` | 上一版本 | [Release](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.4) |
-
-## 部署入口
-
-- [CPA CLI + CPAMP 统一部署](docs/deployment-cpa-cpamp.zh-CN.md)
-- [CPAMP 发布模板](deploy/cpamp-pool-server/README.md)
-- [GitHub Releases](https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases)
-- [CLIProxyAPI 源码与完整说明](https://github.com/router-for-me/CLIProxyAPI)
-- [CPA-Manager-Pro 源码与完整 pool-server 模板（仅供维护者参考）](https://github.com/abc124774961/CPA-Manager-Pro/tree/main/deploy/pool-server)
-
-商城授权地址：`https://p.666ttt.net/api/storefront`。商城签名租约决定正式授权和到期宽限；本地网络故障兜底上限为 6 小时。
+商城授权地址：`https://p.666ttt.net/api/storefront`。客户凭证仅保存在各自部署环境。

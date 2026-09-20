@@ -9,14 +9,14 @@
 
 ## 当前发布组合
 
-本分支为需要显式选择版本的 Beta，既有稳定版保持原状。先阅读 [Beta 安装与隔离说明](release-beta-20260911.zh-CN.md)。
+本次为正式发布，使用下列固定版本安装。升级前保留配置、账号、数据库及运行状态目录，并采用配套面板。
 
-统一公开发布 tag：`v7.2.148-cpa.7-beta.2`。这是客户获取两项组件、部署模板和安装包的组合锚点；组件版本和镜像 tag 仍按已验证记录保持不变。 清单中的顶层 `version`/`release_tag` 表示组合发布，组件对象中的 `version`/`tag`/镜像 tag 表示实际运行产物。
+统一公开发布 tag：`v7.2.148-cpa.7`。这是客户获取两项组件、部署模板和安装包的组合锚点；组件版本和镜像 tag 仍按已验证记录保持不变。 清单中的顶层 `version`/`release_tag` 表示组合发布，组件对象中的 `version`/`tag`/镜像 tag 表示实际运行产物。
 
 | 组件 | 组件版本 / 镜像 tag | 镜像 | 组合发布 tag |
 | --- | --- | --- | --- |
-| CPA CLI | `v7.2.148-cpa.7-beta.2` | `ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7-beta.2` | `v7.2.148-cpa.7-beta.2` |
-| CPAMP（Manager + Agent） | `v1.12.10-cpa.1-beta.1` | `ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1-beta.1` | `v7.2.148-cpa.7-beta.2` |
+| CPA CLI | `v7.2.148-cpa.7` | `ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7` | `v7.2.148-cpa.7` |
+| CPAMP（Manager + Agent） | `v1.12.10-cpa.1` | `ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1` | `v7.2.148-cpa.7` |
 
 两项均支持 `linux/amd64` 与 `linux/arm64`。平台 digest、校验和及源码提交见
 [release-catalog.json](../release-catalog.json) 和 [release-manifest.json](../release-manifest.json)。
@@ -30,7 +30,7 @@
 ## 2. 部署 CPA CLI
 
 ```bash
-git clone --branch v7.2.148-cpa.7-beta.2 --depth 1 \
+git clone --branch v7.2.148-cpa.7 --depth 1 \
   https://github.com/abc124774961/CLIProxyAPI-CPA-Releases.git /opt/cpa-release
 cd /opt/cpa-release
 cp config.example.yaml config.yaml
@@ -39,7 +39,7 @@ mkdir -p auths logs plugins data/license secrets
 chmod 700 data/license
 ```
 
-编辑 `.env`，至少填写管理密码、商城签发的客户端 ID/Secret，并确认以下地址和状态目录：
+编辑 `.env`，填写管理密码、商城签发的客户端 ID，并确认以下地址和状态目录。仅当商城启用 Secret 校验时填写对应 Secret：
 
 ```dotenv
 CPA_LICENSE_API_BASE_URL=https://p.666ttt.net/api/storefront
@@ -50,7 +50,13 @@ CPA_LICENSE_CLIENT_SECRET_HOST_PATH=./secrets/cpa-license-client-secret
 CLI_PROXY_LICENSE_PATH=./data/license
 ```
 
-将 Secret 写入 `secrets/cpa-license-client-secret`，权限设为 `600`。不要把真实 `.env`、Secret 或授权状态提交到 Git。
+Compose 始终挂载 Secret 文件，默认使用空文件即可；以下命令保留已有文件：
+
+```bash
+test -e secrets/cpa-license-client-secret || install -m 600 /dev/null secrets/cpa-license-client-secret
+```
+
+启用 Secret 校验时，将商城签发的 Secret 写入该文件，权限设为 `600`。不要把真实 `.env`、Secret 或授权状态提交到 Git。
 
 启动前检查并启动 CPA：
 
@@ -61,7 +67,7 @@ docker compose --env-file .env -f docker-compose.yml up -d cli-proxy-api
 curl -fsS http://127.0.0.1:${CLI_PROXY_HOST_PORT:-8317}/healthz
 ```
 
-需要使用预构建 CPA CLI 包时，运行 [`install-cpa-cli-release.sh`](../install-cpa-cli-release.sh) 并显式传入 `--version v7.2.148-cpa.7-beta.2`，按主机架构下载清单登记的二进制和镜像归档。Beta 使用预构建产物，旧源码编译安装器仅用于其对应的稳定源码版本。
+需要使用预构建 CPA CLI 包时，运行 [`install-cpa-cli-release.sh`](../install-cpa-cli-release.sh) 并显式传入 `--version v7.2.148-cpa.7`，按主机架构下载清单登记的二进制和镜像归档。本版本使用预构建产物，旧源码编译安装器保留其原有版本。
 
 ## 3. 部署 CPAMP
 
@@ -69,7 +75,7 @@ curl -fsS http://127.0.0.1:${CLI_PROXY_HOST_PORT:-8317}/healthz
 Manager、Agent、固定镜像归档、Compose 文件和全部部署脚本，不会访问 `CPA-Manager-Pro` 源码仓库：
 
 ```bash
-RELEASE_TAG=v7.2.148-cpa.7-beta.2
+RELEASE_TAG=v7.2.148-cpa.7
 curl -fL \
   "https://raw.githubusercontent.com/abc124774961/CLIProxyAPI-CPA-Releases/${RELEASE_TAG}/install-cpamp-release.sh" \
   -o install-cpamp-release.sh
@@ -90,13 +96,13 @@ cd /opt/cpa-pool
 cp .env.example .env
 ```
 
-确认 `CPA_IMAGE` 和 `CPAMP_IMAGE` 与上表完全一致（CPA 镜像 tag 是 `v7.2.148-cpa.7-beta.2`，CPAMP 镜像 tag 是 `v1.12.10-cpa.1-beta.1`，不要把组合发布 tag 当成镜像 tag）。Manager 与 Agent 必须使用同一 CPAMP 镜像 tag。
-填好商城客户端 ID 和 Secret 后执行：
+确认 `CPA_IMAGE` 和 `CPAMP_IMAGE` 与上表完全一致（CPA 镜像 tag 是 `v7.2.148-cpa.7`，CPAMP 镜像 tag 是 `v1.12.10-cpa.1`，不要把组合发布 tag 当成镜像 tag）。Manager 与 Agent 必须使用同一 CPAMP 镜像 tag。
+填好商城客户端 ID 后执行；启用 Secret 校验时，先将对应 Secret 写入下列文件：
 
 ```bash
 chmod +x bootstrap.sh preflight.sh
 mkdir -p -m 700 secrets
-install -m 600 /path/to/storefront-secret secrets/cpa-license-client-secret
+test -e secrets/cpa-license-client-secret || install -m 600 /dev/null secrets/cpa-license-client-secret
 ./bootstrap.sh --render
 ./preflight.sh
 docker compose --env-file .env -f compose.yml pull

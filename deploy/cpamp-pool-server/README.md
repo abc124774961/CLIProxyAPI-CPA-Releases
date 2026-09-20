@@ -6,7 +6,7 @@
 
 ## 快速安装
 
-本分支是显式选择的 Beta，既有稳定安装保持原状。面板使用本包的固定 HTML 及只读目录挂载，不跟随稳定版的 `releases/latest`。详见 [Beta 安装说明](../../docs/release-beta-20260911.zh-CN.md)。
+本次为正式发布。面板使用本包的固定 HTML 及只读目录挂载，与 Manager 版本保持一致。
 
 ### 方式一：从公开 Release 安装（推荐）
 
@@ -14,7 +14,7 @@
 访问 `CPA-Manager-Pro` 源码：
 
 ```bash
-RELEASE_TAG=v7.2.148-cpa.7-beta.2
+RELEASE_TAG=v7.2.148-cpa.7
 curl -fL \
   "https://raw.githubusercontent.com/abc124774961/CLIProxyAPI-CPA-Releases/${RELEASE_TAG}/install-cpamp-release.sh" \
   -o install-cpamp-release.sh
@@ -81,11 +81,11 @@ docker compose --env-file .env -f compose.yml <command>
 
 ## 必要配置
 
-公开组合发布 tag 为 `v7.2.148-cpa.7-beta.2`；`.env` 中至少确认以下组件镜像值与当前发布目录一致（组合 tag 不等于镜像 tag）：清单字段 `release_tag` 只用于定位公开 Release，不要写入 `CPA_IMAGE` 或 `CPAMP_IMAGE`。
+公开组合发布 tag 为 `v7.2.148-cpa.7`；`.env` 中至少确认以下组件镜像值与当前发布目录一致（组合 tag 不等于镜像 tag）：清单字段 `release_tag` 只用于定位公开 Release，不要写入 `CPA_IMAGE` 或 `CPAMP_IMAGE`。
 
 ```dotenv
-CPA_IMAGE=ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7-beta.2
-CPAMP_IMAGE=ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1-beta.1
+CPA_IMAGE=ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7
+CPAMP_IMAGE=ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1
 CPA_LICENSE_API_BASE_URL=https://p.666ttt.net/api/storefront
 CPA_LICENSE_CLIENT_ID=商城签发的客户端ID
 CPA_LICENSE_REQUIRE_CLIENT_SECRET=false

@@ -3,7 +3,8 @@
 本仓库只提供 CPA CLI 与 CPAMP 的固定发布版本和客户服务器部署文件，说明统一采用中文。
 
 - [中文部署流程](README_CN.md)
-- [公开 Beta 安装说明](docs/release-beta-20260911.zh-CN.md)
+- [正式版部署指南](docs/deployment-cpa-cpamp.zh-CN.md)
+- [历史 Beta 安装说明](docs/release-beta-20260911.zh-CN.md)
 - [当前版本目录](RELEASES_CN.md)
 - [CPAMP 发布模板](deploy/cpamp-pool-server/README.md)
 - [CPAMP 轻量面板文件](management.html)

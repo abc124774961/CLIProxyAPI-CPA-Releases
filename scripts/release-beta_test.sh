@@ -21,11 +21,24 @@ sys.dont_write_bytecode = True
 
 ROOT = Path(sys.argv.pop())
 BETA = "v7.2.148-cpa.7-beta.2"
-STABLE = "v7.2.148-cpa.6"
+STABLE = "v7.2.148-cpa.7"
+SOURCE_STABLE = "v7.2.148-cpa.6"
 
 
 def run(*args, cwd=None, env=None):
     return subprocess.run(args, cwd=cwd, env=env, text=True, capture_output=True)
+
+
+def pin_fixture_cpamp_image(template, version):
+    env_file = template / ".env.example"
+    text, replacements = re.subn(
+        r"(?m)^CPAMP_IMAGE=.*$",
+        "CPAMP_IMAGE=ghcr.io/abc124774961/cpa-manager-plus:" + version,
+        env_file.read_text(),
+    )
+    if replacements != 1:
+        raise AssertionError("CPAMP fixture must contain one image setting")
+    env_file.write_text(text)
 
 
 class BetaReleaseTests(unittest.TestCase):
@@ -67,10 +80,18 @@ class BetaReleaseTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("/releases/download/" + BETA, result.stdout)
 
-    def test_installer_default_stays_stable(self):
-        for name in ("install-cpa-cli-release.sh", "install-cpamp-release.sh", "install-cpa-release.sh"):
-            text = (ROOT / name).read_text()
-            self.assertIn(":-" + STABLE, text, name)
+    def test_prebuilt_installer_defaults_use_current_stable(self):
+        env = {key: value for key, value in os.environ.items()
+               if not key.startswith(("CPA_", "CPAMP_"))}
+        for name in ("install-cpa-cli-release.sh", "install-cpamp-release.sh"):
+            with self.subTest(installer=name):
+                result = run("bash", str(ROOT / name), "--dry-run", env=env)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("/releases/download/" + STABLE + "\n", result.stdout)
+
+    def test_source_installer_default_preserves_source_release(self):
+        text = (ROOT / "install-cpa-release.sh").read_text()
+        self.assertIn(":-" + SOURCE_STABLE, text)
 
     def test_beta_source_build_is_not_used(self):
         env = dict(os.environ, CPA_RELEASE_VERSION=BETA)
@@ -85,10 +106,10 @@ class BetaReleaseTests(unittest.TestCase):
         self.assertIn('gh release edit "$GITHUB_REF_NAME" "${release_flags[@]}"', text)
         self.assertIn('--generate-notes "${release_flags[@]}"', text)
         self.assertIn('scripts/package-public-release.sh "$version" "$archive"', text)
-        self.assertIn("Beta release is already public; published assets are immutable.", text)
+        self.assertIn("Release is already public; published assets are immutable.", text)
         self.assertIn("- import_prebuilt", text)
 
-    def test_beta_archive_allowlist_and_stable_behavior(self):
+    def test_public_archives_use_deployment_allowlist(self):
         script = (ROOT / "scripts/package-public-release.sh").read_text()
         files = shlex.split(re.search(r"(?ms)^files=\(\n(.*?)^\)", script).group(1))
         with tempfile.TemporaryDirectory(prefix="cpa-beta-archive-") as directory:
@@ -113,10 +134,10 @@ class BetaReleaseTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 with tarfile.open(archive) as package:
                     names = {"/".join(Path(member.name).parts[1:]) for member in package if member.isfile()}
-                if version == BETA:
-                    self.assertEqual(names, set(files))
-                else:
-                    self.assertIn("internal/private.go", names)
+                self.assertEqual(names, set(files))
+                self.assertNotIn("internal/private.go", names)
+                self.assertNotIn("auths/runtime.json", names)
+                self.assertNotIn("secrets/runtime.key", names)
 
     def test_fixed_panel_directory_and_no_source_build(self):
         compose = (ROOT / "deploy/cpamp-pool-server/compose.yml").read_text()
@@ -133,6 +154,7 @@ class BetaReleaseTests(unittest.TestCase):
             fixture = Path(directory)
             source = fixture / "release/deploy/cpamp-pool-server"
             shutil.copytree(ROOT / "deploy/cpamp-pool-server", source)
+            pin_fixture_cpamp_image(source, "v1.12.10-cpa.1-beta.1")
             panel = "<html>v1.12.10-cpa.1-beta.1</html>"
             (fixture / "release/management.html").write_text(panel)
             target = fixture / "stack"
@@ -146,11 +168,6 @@ class BetaReleaseTests(unittest.TestCase):
             result = run("bash", str(source / "bootstrap.sh"), "--dir", str(target), "--render")
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("Bundled panel version must match", result.stderr)
-
-    def test_image_import_stable_noop(self):
-        result = run("bash", str(ROOT / "scripts/publish-beta-images.sh"), STABLE)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("prebuilt beta import is not used", result.stdout)
 
     def test_image_metadata_rejects_wrong_components_and_digests(self):
         spec = importlib.util.spec_from_file_location("beta_images", ROOT / "scripts/validate-beta-images.py")
@@ -171,6 +188,11 @@ class BetaReleaseTests(unittest.TestCase):
                 module.verify(path, digest, "sha256:" + "b" * 64, "sha256:" + "a" * 64)
 
     def test_image_import_fails_closed_and_preserves_existing_tags(self):
+        for version, cpamp_version in ((BETA, "v1.12.10-cpa.1-beta.1"), (STABLE, "v1.12.10-cpa.1")):
+            with self.subTest(version=version):
+                self.check_image_import(version, cpamp_version)
+
+    def check_image_import(self, version, cpamp_version):
         with tempfile.TemporaryDirectory(prefix="cpa-beta-import-") as directory:
             fixture = Path(directory)
             (fixture / "scripts").mkdir()
@@ -183,7 +205,7 @@ class BetaReleaseTests(unittest.TestCase):
             ]})
             (fixture / "raw.json").write_text(raw)
             (fixture / "oci.tar").write_bytes(b"synthetic OCI fixture")
-            images = ("cli-proxy-api-cpa:" + BETA, "cpa-manager-plus:v1.12.10-cpa.1-beta.1")
+            images = ("cli-proxy-api-cpa:" + version, "cpa-manager-plus:" + cpamp_version)
             entries = []
             components = {}
             for key, image in zip(("cpa_cli", "cpamp"), images):
@@ -197,8 +219,10 @@ class BetaReleaseTests(unittest.TestCase):
                 }
                 entries.append(entry)
                 components[key] = dict(entry, version=image.split(":")[-1], platforms=["linux/amd64", "linux/arm64"])
-            (fixture / "beta-image-imports.json").write_text(json.dumps({"entries": entries}))
-            (fixture / "release-manifest.json").write_text(json.dumps({"version": BETA, "components": components}))
+            (fixture / "beta-image-imports.json").write_text(json.dumps({"schema_version": 1, "release_tag": version, "entries": entries}))
+            (fixture / "release-manifest.json").write_text(json.dumps({
+                "repository": "abc124774961/CLIProxyAPI-CPA-Releases", "version": version, "components": components,
+            }))
             mock = '''#!/usr/bin/env python3
 import json, os, pathlib, shutil, sys
 root = pathlib.Path(os.environ["MOCK_ROOT"])
@@ -207,7 +231,10 @@ tool = pathlib.Path(sys.argv[0]).name
 with (root / "calls").open("a") as log:
     log.write(tool + " " + " ".join(args) + "\\n")
 if tool == "gh":
-    shutil.copyfile(root / "oci.tar", pathlib.Path(args[args.index("--dir") + 1]) / args[args.index("--pattern") + 1])
+    if args[:2] == ["release", "view"]:
+        print("true")
+    else:
+        shutil.copyfile(root / "oci.tar", pathlib.Path(args[args.index("--dir") + 1]) / args[args.index("--pattern") + 1])
 elif args[0] == "login":
     sys.stdin.read()
 elif args[0] == "copy":
@@ -224,7 +251,7 @@ elif args[0] == "inspect" and "--raw" in args:
             sys.exit(0)
     sys.stdout.write((root / "raw.json").read_text())
 else:
-    version = "v1.12.10-cpa.1-beta.1" if "cpa-manager-plus:" in args[-1] or "cpamp.tar" in args[-1] else "v7.2.148-cpa.7-beta.2"
+    version = os.environ["MOCK_CPAMP_VERSION"] if "cpa-manager-plus:" in args[-1] or "cpamp.tar" in args[-1] else os.environ["MOCK_RELEASE_VERSION"]
     print(json.dumps({"Labels": {"org.opencontainers.image.source": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases", "org.opencontainers.image.revision": "c" * 40, "org.opencontainers.image.version": version}}))
 '''
             for name in ("gh", "skopeo"):
@@ -232,13 +259,14 @@ else:
                 path.write_text(mock)
                 path.chmod(0o755)
             env = dict(os.environ, MOCK_ROOT=str(fixture), RUNNER_TEMP=str(fixture),
+                       MOCK_RELEASE_VERSION=version, MOCK_CPAMP_VERSION=cpamp_version,
                        GITHUB_REPOSITORY="abc124774961/CLIProxyAPI-CPA-Releases", GITHUB_ACTOR="beta-test",
                        GH_TOKEN="synthetic-local-test-token", PATH=str(fixture / "bin") + os.pathsep + os.environ["PATH"])
             for state in ("wrong", "error", "correct", "absent"):
                 with self.subTest(state=state):
                     (fixture / "state").write_text(state)
                     (fixture / "calls").write_text("")
-                    result = run("bash", str(fixture / "scripts/publish-beta-images.sh"), BETA, env=env)
+                    result = run("bash", str(fixture / "scripts/publish-beta-images.sh"), version, env=env)
                     calls = (fixture / "calls").read_text()
                     if state in ("wrong", "error"):
                         self.assertNotEqual(result.returncode, 0, result.stdout)
@@ -267,6 +295,7 @@ else:
             package = fixture / "build" / package_name
             package.mkdir(parents=True)
             shutil.copytree(ROOT / "deploy/cpamp-pool-server", package / "deploy/cpamp-pool-server")
+            pin_fixture_cpamp_image(package / "deploy/cpamp-pool-server", version)
             (package / "bin").mkdir()
             for name in ("cpa-manager-plus", "cpamp-agent"):
                 path = package / "bin" / name

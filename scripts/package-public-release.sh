@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Beta bundles expose only the customer deployment surface of the public tag.
+# Public bundles expose only the customer deployment surface of the pinned tag.
 set -Eeuo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -12,11 +12,6 @@ output="${2:?usage: package-public-release.sh VERSION OUTPUT}"
 [[ "$output" == /* ]] || output="$PWD/$output"
 mkdir -p "$(dirname "$output")"
 cd "$repo_root"
-
-if [[ "$version" != *-beta.* ]]; then
-  git archive --format=tar.gz --prefix="CLIProxyAPI-CPA-${version}/" "$version" > "$output"
-  exit 0
-fi
 
 files=(
   LICENSE README.md README_CN.md RELEASES.md RELEASES_CN.md RELEASE-CANDIDATE.md

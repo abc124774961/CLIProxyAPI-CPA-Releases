@@ -8,10 +8,6 @@ version="${1:-${GITHUB_REF_NAME:-}}"
   printf 'ERROR: invalid public release version\n' >&2
   exit 1
 }
-if [[ "$version" != *-beta.* ]]; then
-  printf 'Stable release: prebuilt beta import is not used.\n'
-  exit 0
-fi
 for command in gh skopeo python3 sha256sum; do
   command -v "$command" >/dev/null 2>&1 || { printf 'ERROR: %s is required\n' "$command" >&2; exit 1; }
 done
@@ -21,11 +17,16 @@ done
 }
 : "${GITHUB_ACTOR:?GITHUB_ACTOR is required}"
 : "${GH_TOKEN:?GH_TOKEN is required}"
-work_dir="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/cpa-beta-images.XXXXXX")"
+work_dir="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/cpa-release-images.XXXXXX")"
 trap 'rm -rf "$work_dir"' EXIT
 export REGISTRY_AUTH_FILE="$work_dir/registry-auth.json"
 validator="$repo_root/scripts/validate-beta-images.py"
 python3 "$validator" plan "$repo_root/beta-image-imports.json" "$repo_root/release-manifest.json" "$version" > "$work_dir/plan.tsv"
+# OCI source assets are uploaded to a draft before the tag workflow starts.
+[[ "$(gh release view "$version" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == true ]] || {
+  printf 'ERROR: release must exist as a draft; published assets are immutable.\n' >&2
+  exit 1
+}
 printf '%s' "$GH_TOKEN" | skopeo login --username "$GITHUB_ACTOR" --password-stdin ghcr.io >/dev/null
 
 # Fail closed on permission, transport, and rate-limit errors; only an explicit
@@ -54,7 +55,7 @@ verify_labels() {
 while IFS=$'\t' read -r image archive checksum digest revision amd64 arm64; do
   if remote_exists; then
     verify_labels "docker://$image"
-    printf 'Verified existing immutable beta image: %s\n' "$image"
+    printf 'Verified existing immutable release image: %s\n' "$image"
     continue
   else
     result=$?
@@ -66,15 +67,16 @@ while IFS=$'\t' read -r image archive checksum digest revision amd64 arm64; do
   python3 "$validator" verify "$work_dir/archive.json" "$digest" "$amd64" "$arm64"
   verify_labels "oci-archive:$work_dir/$archive"
   if remote_exists; then
-    printf 'Beta image appeared with the expected digest: %s\n' "$image"
+    verify_labels "docker://$image"
+    printf 'Release image appeared with the expected digest: %s\n' "$image"
     continue
   else
     result=$?
     [[ "$result" == 1 ]] || exit "$result"
   fi
   skopeo copy --all --preserve-digests "oci-archive:$work_dir/$archive" "docker://$image"
-  remote_exists || { printf 'ERROR: imported beta image verification failed\n' >&2; exit 1; }
+  remote_exists || { printf 'ERROR: imported release image verification failed\n' >&2; exit 1; }
   verify_labels "docker://$image"
-  printf 'Imported and verified immutable beta image: %s\n' "$image"
+  printf 'Imported and verified immutable release image: %s\n' "$image"
   rm -f "$work_dir/$archive"
 done < "$work_dir/plan.tsv"

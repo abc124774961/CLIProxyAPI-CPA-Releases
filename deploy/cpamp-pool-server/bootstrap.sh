@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bootstrap and operate the public CPA pool stack (bundle v7.2.148-cpa.7-beta.2).
+# Bootstrap and operate the public CPA pool stack (bundle v7.2.148-cpa.7).
 #
 # The script is deliberately local and deterministic:
 #   * .env is created once and then preserved between runs;
@@ -598,8 +598,8 @@ set_env CPA_LICENSE_CLIENT_SECRET_FILE ""
 set_env CPA_LICENSE_CLIENT_SECRET ""
 
 # Defaults that must be present before preflight and Compose interpolation.
-set_env CPA_IMAGE "$(value_or CPA_IMAGE ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7-beta.2)"
-set_env CPAMP_IMAGE "$(value_or CPAMP_IMAGE ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1-beta.1)"
+set_env CPA_IMAGE "$(value_or CPA_IMAGE ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7)"
+set_env CPAMP_IMAGE "$(value_or CPAMP_IMAGE ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1)"
 set_env CPA_PULL_POLICY "$(value_or CPA_PULL_POLICY always)"
 set_env CPAMP_PULL_POLICY "$(value_or CPAMP_PULL_POLICY always)"
 set_env CPA_PORT "$(value_or CPA_PORT 8317)"

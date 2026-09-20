@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
-  "release_tag": "v7.2.148-cpa.7-beta.2",
+  "release_tag": "v7.2.148-cpa.7",
   "entries": [
     {
-      "image": "ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7-beta.2",
-      "archive": "cpa-beta2.oci.tar",
-      "sha256": "edb82c4063ae9bcf8df9bd128b3fed5b7fb83e22a23418631b6babdf9e4abd37",
-      "image_digest": "sha256:7c6681b0b5d29400995be45418344bac9a62983f0b615a3bb302625c5971fb36",
-      "source_commit": "04fb8f942d25d01242afd8832f4a7c1bbb4b2cb2",
+      "image": "ghcr.io/abc124774961/cli-proxy-api-cpa:v7.2.148-cpa.7",
+      "archive": "core.oci.tar",
+      "sha256": "5e1e8bc4a07fb9e71cd98e9eb6497de5c5dbe325c188c2e63f6362c63a045361",
+      "image_digest": "sha256:9b4dbbced1abe528c2a3f4b78ef60f892ac7de005a5b4504d41202d1bf7be0f9",
+      "source_commit": "67592496fb4feaf421d17b04c41e24f1c7c8a009",
       "platform_digests": {
-        "linux/amd64": "sha256:7657b8262355bf204a2e8fd3f71788d97dc20f3a4c8a5e394bdf45f1949d2767",
-        "linux/arm64": "sha256:286fe90e3f771ce77e9f6dbe85967af0a4b8a0dccfd2e044233c7f4abd8171b9"
+        "linux/amd64": "sha256:91c5a4f36d9ab04209cc3bbdaf359533c45d1dc1056d14fa426962f78024be6c",
+        "linux/arm64": "sha256:ae52006c1077bb38328c453e516d5250cecc9233da5f5189a0a1519965d20cfb"
       }
     },
     {
-      "image": "ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1-beta.1",
-      "archive": "cpamp-image-final.oci.tar",
-      "sha256": "d1102d239590868615ccd654ae8609091eac6102a75f5c94d8eb2ab2f98ae004",
-      "image_digest": "sha256:1bc7b0686ebaee44eb1e17cc6abb4687eaf238f3d603811bf42efb6ddbb799b3",
-      "source_commit": "21cff70cdc4ffc2f1b51ae64e101d573f3f45b8d",
+      "image": "ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1",
+      "archive": "manager.oci.tar",
+      "sha256": "7f24e3e86526abe08e4e5aaae54686d4308b8140bfebd12d1f1d3019621271ff",
+      "image_digest": "sha256:94df0b23b59e511b33c459a3535d81a0e84a186da63b031336ef2d99c8bf4a41",
+      "source_commit": "9c6f5b98c9e76094c6376dfd85ce1123e090c562",
       "platform_digests": {
-        "linux/amd64": "sha256:b36688971bf3af8b0df65d30ff8f9a8592fdd7390a86f2d90bdc3e46d06eb8dd",
-        "linux/arm64": "sha256:46c74b50150432b584e81f2e32e3e4a59cb2a6a939521235cfc3bed06013b44c"
+        "linux/amd64": "sha256:f1baf8e6ceebaf136b481af18d5f4e4f3ad5eb10abbca261d243feb1157bc3f7",
+        "linux/arm64": "sha256:2280641121c6ecfe1dfb417a4ff43e9148a818b19964949943cecb732371eb27"
       }
     }
   ]

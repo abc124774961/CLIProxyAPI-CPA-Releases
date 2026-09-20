@@ -24,7 +24,7 @@ remote-management:
 
   # Disable the bundled management control panel asset download and HTTP route when true.
   disable-control-panel: true
-  # Beta UI is served by the matching CPAMP bundle, not the stable updater.
+  # The matching CPAMP bundle serves the release-pinned management panel.
   disable-auto-update-panel: true
 
   # GitHub repository for the management control panel. Accepts a repository URL or releases API URL.
@@ -180,7 +180,7 @@ redis-usage-queue-retention-seconds: 60
 # Per-entry proxy-url also supports "direct" or "none" to bypass both the global proxy-url and environment proxies explicitly.
 proxy-url: ""
 
-# Optional unified egress routing. Disabled by default; existing proxies stay unchanged.
+# Optional unified egress routing. Disabled by default; existing proxy settings stay unchanged.
 # Native IPs must already be assigned to this host. Both kinds can share a pool.
 # proxy-routing:
 #   enabled: false
@@ -190,7 +190,7 @@ proxy-url: ""
 #       kind: native
 #       source-ip: "192.0.2.10"
 #       enabled: true
-#       max-concurrency: 4 # Per account + node; 0 adds no exit concurrency limit.
+#       max-concurrency: 4 # Per account + node; 0 means no additional exit limit.
 #     - id: proxy-1
 #       name: External proxy 1
 #       kind: proxy
@@ -203,7 +203,7 @@ proxy-url: ""
 #       enabled: true
 #       members:
 #         - node-id: local-ip-1
-#           priority: 10 # Higher first, then weighted occupancy within a tier.
+#           priority: 10 # Higher first, then weighted occupancy within the same tier.
 #           weight: 1
 #         - node-id: proxy-1
 #           priority: 0
@@ -211,9 +211,9 @@ proxy-url: ""
 #   global:
 #     mode: replace # inherit, direct, replace, append
 #     pool-ids: [mixed]
-#   groups: {} # Decimal group IDs -> bindings, with priority for precedence.
-#   accounts: {} # Management auth IDs -> bindings. Account quota stays shared.
-# See docs/release-beta-20260911.zh-CN.md for opt-in deployment behavior.
+#   groups: {} # Decimal account-group IDs -> binding, with priority for group precedence.
+#   accounts: {} # Management auth IDs -> binding. Account quota remains shared across exits.
+# Configure proxy routes through the matching management panel.
 
 # When true, unprefixed model requests only use credentials without a prefix (except when prefix == model name).
 force-model-prefix: false
@@ -259,11 +259,11 @@ claude-code:
   # When true, return original model IDs in Anthropic model list responses instead of cloaked IDs.
   disable-cloaking-model-list: false
 
-# disable-image-generation supports: false (default), true, "chat", or "passthrough".
+# disable-image-generation supports: false, true, "chat", or "passthrough" (default).
 # - true: disable image_generation everywhere (also returns 404 for /v1/images/generations and /v1/images/edits).
 # - "chat": disable image_generation injection on non-images endpoints, but keep /v1/images/generations and /v1/images/edits enabled.
 # - "passthrough": never inject or strip image_generation on non-images endpoints (forward the client payload unchanged); behaves like "chat" on /v1/images/* endpoints.
-disable-image-generation: false
+disable-image-generation: passthrough
 
 # Base model used by the legacy hosted image_generation tool path when a Codex image request is not proxied directly through the Image API.
 # Must start with "gpt-" (case-insensitive). If unset or invalid, defaults to "gpt-5.4-mini".
@@ -308,7 +308,7 @@ routing:
   # How long session-to-auth bindings are retained. Default: 1h
   session-affinity-ttl: "1h"
   # High cache mode keeps routing stable for cache-heavy Codex/OpenAI workloads.
-  # It is off by default and only changes behavior when explicitly enabled.
+  # This public release template leaves it disabled until explicitly enabled.
   high-cache-mode: false
   # Use the incremental auth candidate index for every local selection path.
   # When false, every request uses the legacy auth scan without indexed fallback.
@@ -316,31 +316,100 @@ routing:
 
 # Codex provider behavior.
 codex:
-  # Observation does not modify requests, accounts, concurrency, or TLS.
+  # Opaque, turn-scoped continuity state. Canonical state
+  # is bound to the selected credential, final identity, egress, model, and
+  # turn_id; it is never persisted or used to change account availability.
+  turn-state:
+    enabled: false
+    observe-only: true
+    ttl: "15m"
+    max-entries: 10000
+    max-state-bytes: 2048
+    diagnostics: false
+    # Independent evidence experiment. Account variants are matched by both
+    # normalized plan family and workspace presence. Unknown combinations are
+    # observed only and never inherit another profile's target length.
+    experimental-harvest:
+      enabled: true
+      # Optional acquisition pool, mixed with the account's existing native exits.
+      # Observed targets are verified on their original route before publication.
+      acquisition-pool-id: ""
+      profiles:
+        - id: pro-personal
+          plan-families: [pro]
+          workspace: absent
+          target-length: 292
+          prefix: gAAAAA
+        - id: pro-workspace
+          plan-families: [pro]
+          workspace: present
+          target-length: 332
+          prefix: gAAAAA
+        - id: team-workspace
+          plan-families: [team]
+          workspace: present
+          target-length: 332
+          prefix: gAAAAA
+        - id: business-workspace
+          plan-families: [business]
+          workspace: present
+          target-length: 332
+          prefix: gAAAAA
+        - id: business-prolite-workspace
+          plan-families: [self_serve_business_prolite]
+          workspace: present
+          target-length: 332
+          prefix: gAAAAA
+      # Prefix rules are expanded against each account's registered models.
+      models: [gpt-*]
+      max-concurrency: 100
+      # Bounded concurrent probes per account (never above max-concurrency).
+      account-max-concurrency: 3
+      # Independent account loops still obey upstream and proxy capacity gates.
+      starts-per-minute: 2000
+      account-starts-per-minute: 60
+      # Wait after background work completes before acquiring again for that account.
+      account-probe-interval: "3s"
+      max-candidates: 1000
+      probe-interval: "60s"
+      candidate-ttl: "1h"
+      jitter: "10s"
+      max-backoff: "15m"
+  # Observation only: does not change requests, accounts, concurrency, or TLS.
+  # Mutation modes require a separately verified native-client baseline.
   protocol-compatibility:
     http-mode: legacy # legacy | observe (also covers compact)
-    websocket-mode: legacy # Independent of HTTP mode.
-    sample-percent: 5 # Explicit 0 disables sampling.
-    retention-seconds: 900 # Process-local records; maximum 3600 seconds.
-    max-body-bytes: 262144 # Larger bodies are skipped, never rejected.
+    websocket-mode: legacy # Independent of HTTP mode
+    sample-percent: 5 # Explicit 0 disables sampling
+    retention-seconds: 900 # Process-local records, maximum 3600 seconds
+    max-body-bytes: 262144 # Larger bodies are marked skipped, never rejected
     # account-modes:
     #   ACCOUNT_ID:
     #     websocket-mode: observe
-  # When true, and routing.strategy is fill-first, routing.session-affinity is true,
-  # or routing.high-cache-mode is true, remap Codex prompt/session identity per
-  # selected auth and pin one stable installation fingerprint per account.
+  # When true, remap Codex prompt/session identity per selected auth and pin one
+  # stable installation fingerprint per account. With identity-pools.enabled,
+  # this account isolation is active regardless of routing strategy. Strict
+  # identity-confuse mode enforces cache/session mapping even if the individual
+  # cache-key-mapping switch is disabled, while preserving CPA's internal key.
   # File auths may persist `codex_identity_fingerprint` to retain that device
   # identity across token rotation, file renames, or account metadata changes.
   # Some superstitious users believe request tracking identifiers can be used
   # as evidence for TOS enforcement bans; this option only satisfies those odd concerns.
   identity-confuse: false
-  # Optional per-account environments. Disabled until explicitly configured.
+  # Provider-neutral outbound interceptor and account identity-pool runtime.
+  # Disabled by default so existing deployments retain their current behavior.
   identity-pools:
     enabled: false
-    fail-open: true
-    profile-binding: stable-hash # Assign profiles after this feature is enabled.
+    # Keep false when account-level isolation is required; missing identity
+    # material should fail the request instead of forwarding the shared key.
+    fail-open: false
+    # stable-hash assigns an enabled environment automatically to every account.
+    # none disables automatic assignment for accounts without an explicit choice.
+    profile-binding: stable-hash
+    # Persistent per-account environment choices. An empty value explicitly
+    # leaves that account unassigned even when profile-binding is stable-hash.
     # account-profiles:
-    #   ACCOUNT_ID: PROFILE_ID # Empty value explicitly leaves it unassigned.
+    #   ACCOUNT_ID: PROFILE_ID
     session-mapping: true
     cache-key-mapping: true
     diagnostics: true
@@ -376,8 +445,17 @@ codex:
   cache-affinity:
     enabled: false
     shadow: true
+    high-cache:
+      session-affinity: true
+      stable-cold-binding: true
+      prefix-heat: true
+      temporary-failover: true
+      persistent-binding: true
+      websocket-pool-reuse: true
+      quota-aware-selection: true
+      diagnostics: true
     # Optional durable binding state; auth tokens are never written here.
-    # state-file: "auths.state/session-affinity.json"
+    state-file: "auths.state/session-affinity.json"
     # Keep this false to preserve warm-session affinity. When true, credentials
     # in their final five minutes may temporarily receive warm sessions so the
     # bounded expiry-drain concurrency can consume their remaining quota.
@@ -494,8 +572,8 @@ xai:
   # The injected tool is also added to tool_choice.allowed_tools when applicable.
   inject-x-search: false
 
-# Opt-in logical session concurrency. Existing account modes are preserved.
-# Only one CPA process may own a writable session state file at a time.
+# Opt-in logical session concurrency. Account modes remain request until explicitly configured.
+# Runtime state is durable and exclusively locked by the owning process.
 session-pool:
   enabled: false
   # state-file: "/var/lib/cli-proxy-api/session-pool.state"

@@ -34,6 +34,7 @@ jobs:
         run: |
           bash -n install-cpa-release.sh install-cpa-cli-release.sh install-cpamp-release.sh scripts/package-cpa-release.sh scripts/package-cpamp-release.sh scripts/package-public-release.sh scripts/publish-beta-images.sh scripts/release-beta_test.sh scripts/check-license-deployment.sh scripts/check-license-runtime.sh scripts/verify-release-bundle.sh
           python3 -m py_compile scripts/validate-beta-images.py
+          python3 scripts/validate-beta-images_test.py
           test -x install-cpa-release.sh
           test -x install-cpa-cli-release.sh
           test -x install-cpamp-release.sh
@@ -49,7 +50,7 @@ jobs:
       - name: Validate release tag format
         run: |
           [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-cpa\.[0-9]+(-beta\.[1-9][0-9]*)?$ ]]
-      - name: Verify beta release isolation
+      - name: Verify stable and beta release isolation
         run: bash scripts/release-beta_test.sh
       - name: Verify public release bundle
         run: scripts/verify-release-bundle.sh "$GITHUB_REF_NAME"
@@ -66,18 +67,20 @@ jobs:
           (cd "$temp_dir" && ./bootstrap.sh --render)
 
   import_prebuilt:
-    name: Import verified beta images
+    name: Import verified release images
     needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install OCI registry tooling
-        if: contains(github.ref_name, '-beta.')
         run: sudo apt-get update && sudo apt-get install -y skopeo
-      - name: Import immutable beta image archives
+      - name: Import immutable release image archives
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/publish-beta-images.sh "$GITHUB_REF_NAME"
+        run: |
+          # OCI archive extraction restores ownership on this ephemeral runner.
+          sudo --preserve-env=GH_TOKEN,GITHUB_REPOSITORY,GITHUB_ACTOR,RUNNER_TEMP \
+            bash scripts/publish-beta-images.sh "$GITHUB_REF_NAME"
 
   package:
     name: Package release bundle
@@ -152,7 +155,7 @@ jobs:
           path: dist/
 
   publish:
-    name: Publish GitHub release and GHCR image
+    name: Verify images and prepare draft release
     needs:
       - verify
       - package
@@ -251,27 +254,60 @@ jobs:
                       f"manifest={expected}, actual={actual_platform_digests.get(platform)}"
                   )
           PY
-      - name: Create or update GitHub release
+      - name: Create or update draft GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          release_flags=()
+          release_flags=(--prerelease=false --latest=false)
           if [[ "$GITHUB_REF_NAME" == *-beta.* ]]; then
             release_flags=(--prerelease --latest=false)
           fi
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            if [[ "${#release_flags[@]}" -gt 0 ]]; then
-              [[ "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" == true ]] || {
-                echo "Beta release is already public; published assets are immutable."
-                exit 1
-              }
-              gh release edit "$GITHUB_REF_NAME" "${release_flags[@]}"
-            fi
+            [[ "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" == true ]] || {
+              echo "Release is already public; published assets are immutable."
+              exit 1
+            }
+            gh release edit "$GITHUB_REF_NAME" "${release_flags[@]}"
             gh release upload "$GITHUB_REF_NAME" dist/* --clobber
           else
-            if [[ "$GITHUB_REF_NAME" == *-beta.* ]]; then
-              release_flags+=(--draft)
-            fi
-            gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes "${release_flags[@]}"
+            release_flags+=(--draft)
+            gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "$GITHUB_REF_NAME" --generate-notes "${release_flags[@]}"
           fi
+      - name: Verify uploaded draft assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          release_id="$(gh release view "$GITHUB_REF_NAME" --json databaseId --jq .databaseId)"
+          gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" > "$RUNNER_TEMP/draft-release.json"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" > "$RUNNER_TEMP/draft-assets.json"
+          python3 - "$RUNNER_TEMP/draft-release.json" "$RUNNER_TEMP/draft-assets.json" <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import sys
+
+          release = json.loads(Path(sys.argv[1]).read_text())
+          if release.get("draft") is not True or release.get("tag_name") != os.environ["GITHUB_REF_NAME"]:
+              raise SystemExit("Release must remain a draft with the expected tag")
+          expected_prerelease = "-beta." in os.environ["GITHUB_REF_NAME"]
+          if release.get("prerelease") != expected_prerelease:
+              raise SystemExit("Release channel does not match the tag")
+          assets = {}
+          for page in json.loads(Path(sys.argv[2]).read_text()):
+              for asset in page:
+                  if asset["name"] in assets:
+                      raise SystemExit("Duplicate release asset: " + asset["name"])
+                  assets[asset["name"]] = asset
+          for path in Path("dist").iterdir():
+              if not path.is_file():
+                  raise SystemExit("Unexpected artifact directory: " + str(path))
+              with path.open("rb") as handle:
+                  digest = "sha256:" + hashlib.file_digest(handle, "sha256").hexdigest()
+              remote = assets.get(path.name, {})
+              if remote.get("state") != "uploaded" or remote.get("size") != path.stat().st_size or remote.get("digest") != digest:
+                  raise SystemExit("Uploaded asset verification failed: " + path.name)
+          print("All packaged assets verified; release remains draft for final acceptance.")
+          PY
