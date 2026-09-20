@@ -16,12 +16,12 @@
     {
       "image": "ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1",
       "archive": "manager.oci.tar",
-      "sha256": "7f24e3e86526abe08e4e5aaae54686d4308b8140bfebd12d1f1d3019621271ff",
-      "image_digest": "sha256:94df0b23b59e511b33c459a3535d81a0e84a186da63b031336ef2d99c8bf4a41",
+      "sha256": "dbd8b0199468dd1e57d4c5dd11ca4ccf04cc90c1375e6b51cfad0ae39fe5db9c",
+      "image_digest": "sha256:35997c3647577ffb2a639d76351d524b7e6dc1932670f84ab9f42cc9abbafd69",
       "source_commit": "9c6f5b98c9e76094c6376dfd85ce1123e090c562",
       "platform_digests": {
-        "linux/amd64": "sha256:f1baf8e6ceebaf136b481af18d5f4e4f3ad5eb10abbca261d243feb1157bc3f7",
-        "linux/arm64": "sha256:2280641121c6ecfe1dfb417a4ff43e9148a818b19964949943cecb732371eb27"
+        "linux/amd64": "sha256:14df9f77bf1a662bf502dd7f50828c44b9fa415065c0be6b0c511cdd8df19de7",
+        "linux/arm64": "sha256:f574bb50625bfb2ac0353eb2fc506937cd39c3420bba5521299bea5b80ba3e02"
       }
     }
   ]

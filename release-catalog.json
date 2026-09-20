@@ -114,10 +114,10 @@
         "source_commit": "9c6f5b98c9e76094c6376dfd85ce1123e090c562",
         "release_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.7",
         "image": "ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1",
-        "image_digest": "sha256:94df0b23b59e511b33c459a3535d81a0e84a186da63b031336ef2d99c8bf4a41",
+        "image_digest": "sha256:35997c3647577ffb2a639d76351d524b7e6dc1932670f84ab9f42cc9abbafd69",
         "platform_digests": {
-          "linux/amd64": "sha256:f1baf8e6ceebaf136b481af18d5f4e4f3ad5eb10abbca261d243feb1157bc3f7",
-          "linux/arm64": "sha256:2280641121c6ecfe1dfb417a4ff43e9148a818b19964949943cecb732371eb27"
+          "linux/amd64": "sha256:14df9f77bf1a662bf502dd7f50828c44b9fa415065c0be6b0c511cdd8df19de7",
+          "linux/arm64": "sha256:f574bb50625bfb2ac0353eb2fc506937cd39c3420bba5521299bea5b80ba3e02"
         },
         "artifact_manifest": "CPAMP-v1.12.10-cpa.1.manifest.json",
         "panel_asset_sha256": "a1ae6865eb4be32cc6997dd34c0da61e72dfca56907173af16106497065a5872",
@@ -151,7 +151,7 @@
           "release_tag": "v7.2.148-cpa.7",
           "tag_url": "https://github.com/abc124774961/CLIProxyAPI-CPA-Releases/releases/tag/v7.2.148-cpa.7",
           "image": "ghcr.io/abc124774961/cpa-manager-plus:v1.12.10-cpa.1",
-          "image_digest": "sha256:94df0b23b59e511b33c459a3535d81a0e84a186da63b031336ef2d99c8bf4a41",
+          "image_digest": "sha256:35997c3647577ffb2a639d76351d524b7e6dc1932670f84ab9f42cc9abbafd69",
           "status": "current"
         },
         {
